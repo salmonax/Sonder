@@ -16,7 +16,7 @@ import Styles from './Styles/MapViewStyle'
 * https://console.developers.google.com/apis/api/maps_android_backend/
 *************************************************************/
 
-class MapViewExample extends React.Component {
+class EnRouteView extends React.Component {
   /* ***********************************************************
   * This example is only intended to get you started with the basics.
   * There are TONS of options available from traffic to buildings to indoors to compass and more!
@@ -120,4 +120,4 @@ const mapStateToProps = (state) => {
   }
 }
 
-export default connect(mapStateToProps)(MapViewExample)
+export default connect(mapStateToProps)(EnRouteView)
