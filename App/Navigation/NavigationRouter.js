@@ -10,6 +10,7 @@ import NavigationDrawer from './NavigationDrawer'
 import AllComponentsScreen from '../Containers/AllComponentsScreen'
 import LoginScreen from '../Containers/LoginScreen'
 
+import MagicMapView from '../Containers/MagicMapView'
 import MapViewExample from '../Containers/MapViewExample'
 import CompassView from '../Containers/CompassView'
 import EnRouteView from '../Containers/EnRouteView'
@@ -27,7 +28,8 @@ class NavigationRouter extends Component {
       <Router>
         <Scene key='drawer' component={NavigationDrawer} open={false}>
           <Scene key='drawerChildrenWrapper' navigationBarStyle={Styles.navBar} titleStyle={Styles.title} leftButtonIconStyle={Styles.leftButton} rightButtonTextStyle={Styles.rightButton}>
-            <Scene initial key='welcomeView' component={WelcomeView} title='Welcome View' />
+            <Scene key='welcomeView' component={WelcomeView} title='Welcome View' />
+            <Scene initial key='magicMapView' component={MagicMapView} title='Magic Map View' />
             <Scene key='compassView' component={CompassView} title='Compass View' />
             <Scene key='enRouteView' component={EnRouteView} title='En Route View' />
             <Scene key='componentExamples' component={AllComponentsScreen} title='Components' />

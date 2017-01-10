@@ -10,6 +10,21 @@ export default StyleSheet.create({
     justifyContent: 'flex-end',
     alignItems: 'center'
   },
+  magicContainer: {
+    position: 'absolute',
+    top: 0,
+    height: 1000,
+    width: 1000,
+    transform: [{rotate: '0deg'}]
+  },
+  magicMap: {
+    // For Android :/
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   map: {
     // For Android :/
     position: 'absolute',
@@ -28,7 +43,7 @@ export default StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: 'row',
-    marginVertical: 20,
+    marginVertical: 5,
     backgroundColor: 'transparent',
   },
 })

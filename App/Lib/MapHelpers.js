@@ -25,9 +25,8 @@ export const getRegionBBox = (region: Object) => {
   // return region
   
   // Return rectangle ordered CCW from bottom right corner
-  return [[maxX, minY], [maxX, maxY], [minX, maxY], [minX, minY]];
+  return [[maxX, minY], [maxX, maxY], [minX, maxY], [minX, minY],[maxX, minY]];
 }
-
 export const toCoords = (geojson: Array<Array>) => geojson.map((tuple) => ({
     longitude: tuple[0], 
     latitude: tuple[1]
