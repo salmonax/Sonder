@@ -46,6 +46,7 @@
 		DF605A775E724D2FB703D1B9 /* Ionicons.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 79291A1773F648A68CF6B594 /* Ionicons.ttf */; };
 		DFF10658B3704A52B243A54A /* libRNVectorIcons.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 219805B474644E768631B9F3 /* libRNVectorIcons.a */; };
 		F21AC7F73DFE4A90940A99DD /* Foundation.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 23602C6E0B8C442088885B2B /* Foundation.ttf */; };
+		55467A292BE24ECF9EBF4C73 /* libRCTMapboxGL.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4C0A46964CC945D4AA4E3969 /* libRCTMapboxGL.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -299,6 +300,8 @@
 		C66FAEA771D04CB2A3EC2E27 /* FBSDKShareKit.framework */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = wrapper.framework; name = FBSDKShareKit.framework; path = ./ios/Frameworks/FBSDKShareKit.framework; sourceTree = "<group>"; };
 		E16796FF47C142ECBE0F975C /* FontAwesome.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = FontAwesome.ttf; path = "../node_modules/react-native-vector-icons/Fonts/FontAwesome.ttf"; sourceTree = "<group>"; };
 		E29344A579914FE9B622C94E /* RNDeviceInfo.xcodeproj */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = "wrapper.pb-project"; name = RNDeviceInfo.xcodeproj; path = "../node_modules/react-native-device-info/RNDeviceInfo.xcodeproj"; sourceTree = "<group>"; };
+		FDF26BCC692C45899F9E0260 /* RCTMapboxGL.xcodeproj */ = {isa = PBXFileReference; name = "RCTMapboxGL.xcodeproj"; path = "../node_modules/react-native-mapbox-gl/ios/RCTMapboxGL.xcodeproj"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = wrapper.pb-project; explicitFileType = undefined; includeInIndex = 0; };
+		4C0A46964CC945D4AA4E3969 /* libRCTMapboxGL.a */ = {isa = PBXFileReference; name = "libRCTMapboxGL.a"; path = "libRCTMapboxGL.a"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = archive.ar; explicitFileType = undefined; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -339,6 +342,7 @@
 				05E2D184AA41469F8377804C /* FBSDKCoreKit.framework in Frameworks */,
 				41BAE1F7FAD34402BFCCC68B /* FBSDKShareKit.framework in Frameworks */,
 				5EF671C1FACE45D18D8470CC /* FBSDKLoginKit.framework in Frameworks */,
+				55467A292BE24ECF9EBF4C73 /* libRCTMapboxGL.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -552,6 +556,7 @@
 				11D5AB7D4C1F4B3B94D857F7 /* AirMaps.xcodeproj */,
 				4689E99B57A0477593AC61CA /* RNVectorIcons.xcodeproj */,
 				BBF8D3F5BEEB4CD48260DFA7 /* RCTFBSDK.xcodeproj */,
+				FDF26BCC692C45899F9E0260 /* RCTMapboxGL.xcodeproj */,
 			);
 			name = Libraries;
 			sourceTree = "<group>";
@@ -1057,6 +1062,7 @@
 					"\"$(SRCROOT)/$(TARGET_NAME)\"",
 					"\"$(SRCROOT)/$(TARGET_NAME)\"",
 					"\"$(SRCROOT)/$(TARGET_NAME)\"",
+					"\"$(SRCROOT)/$(TARGET_NAME)\"",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1075,6 +1081,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
+					"\"$(SRCROOT)/$(TARGET_NAME)\"",
 					"\"$(SRCROOT)/$(TARGET_NAME)\"",
 					"\"$(SRCROOT)/$(TARGET_NAME)\"",
 					"\"$(SRCROOT)/$(TARGET_NAME)\"",
@@ -1176,6 +1183,7 @@
 					"$(SRCROOT)/../node_modules/react-native-maps/ios/**",
 					"$(SRCROOT)/../node_modules/react-native-vector-icons/RNVectorIconsManager",
 					"$(SRCROOT)/../node_modules/react-native-fbsdk/ios/RCTFBSDK/**",
+					"$(SRCROOT)/../node_modules/react-native-mapbox-gl/ios/RCTMapboxGL",
 				);
 				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
@@ -1226,6 +1234,7 @@
 					"$(SRCROOT)/../node_modules/react-native-maps/ios/**",
 					"$(SRCROOT)/../node_modules/react-native-vector-icons/RNVectorIconsManager",
 					"$(SRCROOT)/../node_modules/react-native-fbsdk/ios/RCTFBSDK/**",
+					"$(SRCROOT)/../node_modules/react-native-mapbox-gl/ios/RCTMapboxGL",
 				);
 				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				MTL_ENABLE_DEBUG_INFO = NO;

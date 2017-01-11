@@ -12,6 +12,10 @@ ToDos:
 
 import { DeviceEventEmitter } from 'react-native';
 import ReactNativeHeading from 'react-native-heading';
+// ReactNatveHeading is acting up, so...
+import { SensorManager } from 'NativeModules';
+
+
 // Note: ignoring redux-saga structure for now, so this eventually shouldn't go in here!
 import FixtureApi from '../Services/FixtureApi';
 
@@ -40,7 +44,8 @@ class Compass {
                     'onHeadingChange',
                     'onCompassReady',
                     'onInitialHoods',
-                    'onEntitiesDetected'];
+                    'onEntitiesDetected',
+                    'onOrientationChange'];
     this.EVENTS.forEach(event => {
       this['_'+event] = () => {};
       this[event] = (func) => { 
@@ -76,6 +81,15 @@ class Compass {
     */
     this._setEvents(opts);
     this._radius = opts.radius || 10;
+    SensorManager.startOrientation(17);
+    DeviceEventEmitter.addListener('Orientation', (data) => {
+      this._lastHeading = this._heading;
+      const heading = this._heading = Math.round(data.azimuth);
+      // if (this._lastHeading && Math.abs(this._lastHeading - heading) <= 1) return;
+      const compassLine = this._compassLine = this.getCompassLine();
+      this._onHeadingChange({ heading, compassLine });
+
+    });
 
     const getInitialPosition = new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
@@ -99,16 +113,16 @@ class Compass {
     ReactNativeHeading.start(opts.minAngle || 1)
     .then(didStart => this._onHeadingSupported(didStart));
 
-    DeviceEventEmitter.addListener('headingUpdated', data => {
-      const heading = this._heading = data.heading;
-      const compassLine = this._compassLine = this.getCompassLine();
-      this._onHeadingChange({ heading, compassLine });
-      if (!compassLine) return;
-      this._detectEntities(heading).then(entities => {
-        this._onEntitiesDetected(entities);
-      });
+    // DeviceEventEmitter.addListener('headingUpdated', data => {
+    //   const heading = this._heading = data.heading;
+    //   const compassLine = this._compassLine = this.getCompassLine();
+    //   this._onHeadingChange({ heading, compassLine });
+    //   if (!compassLine) return;
+      // this._detectEntities(heading).then(entities => {
+      //   this._onEntitiesDetected(entities);
+      // });
 
-    });
+    // });
   }
 
   getCompassLine(heading = this._heading, 
@@ -253,6 +267,7 @@ class Compass {
 
   stop() {
     ReactNativeHeading.stop();
+    SensorManager.stopOrientation();
     DeviceEventEmitter.removeAllListeners('headingUpdated');
     navigator.geolocation.clearWatch(this.watchID);
   }

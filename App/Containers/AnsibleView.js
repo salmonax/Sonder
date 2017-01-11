@@ -144,11 +144,8 @@ class AnsibleView extends Component {
             <Text>{this.state.headingIsSupported ?
                     getPrettyBearing(this.state.heading)
                     : "Heading unsupported." }</Text>
-            <Text>{this.state.entities ? 
-                    JSON.stringify(this.state.entities.streets) :
-                    "Normalizing reticulating splines..."}</Text>
-            <Text>{this.state.annotations ? 
-                    JSON.stringify( this.state.annotations ) :
+            <Text>{this.state.orientation ? 
+                    getPrettyBearing(this.state.orientation.azimuth) :
                     null
                   }</Text>
       </View>

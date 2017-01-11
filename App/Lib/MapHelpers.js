@@ -35,7 +35,7 @@ export const getPrettyBearing = (heading) => {
   const angle = (heading <= 90) ? heading : 
                    (heading <= 180) ? 180 - heading :
                      (heading <= 270) ? heading - 180 : 360 - heading;
- return primaryCardinality + angle + degreeChar + secondaryCardinality;
+ return primaryCardinality + Math.round(angle) + degreeChar + secondaryCardinality;
 };
 
 export const toCoords = (geojson: Array<Array>) => geojson.map((tuple) => ({

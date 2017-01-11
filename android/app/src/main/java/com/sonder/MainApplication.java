@@ -4,6 +4,7 @@ import android.app.Application;
 import android.util.Log;
 
 import com.facebook.react.ReactApplication;
+import com.sensormanager.SensorManagerPackage;
 import com.mapbox.reactnativemapboxgl.ReactNativeMapboxGLPackage;
 import com.oblador.vectoricons.VectorIconsPackage;
 import com.airbnb.android.react.maps.MapsPackage;
@@ -33,6 +34,7 @@ public class MainApplication extends Application implements ReactApplication {
     protected List<ReactPackage> getPackages() {
       return Arrays.<ReactPackage>asList(
           new MainReactPackage(),
+            new SensorManagerPackage(),
             new ReactNativeMapboxGLPackage(),
             new VectorIconsPackage(),
             new MapsPackage(),
