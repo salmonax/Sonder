@@ -16,6 +16,7 @@ import EnRouteView from '../Containers/EnRouteView'
 import WelcomeView from '../Containers/WelcomeView'
 import StorageTestView from '../Containers/StorageTestView'
 import FriendsView from '../Containers/FriendsView'
+import AnsibleView from '../Containers/AnsibleView'
 
 /* **************************
 * Documentation: https://github.com/aksonov/react-native-router-flux
@@ -27,7 +28,8 @@ class NavigationRouter extends Component {
       <Router>
         <Scene key='drawer' component={NavigationDrawer} open={false}>
           <Scene key='drawerChildrenWrapper' navigationBarStyle={Styles.navBar} titleStyle={Styles.title} leftButtonIconStyle={Styles.leftButton} rightButtonTextStyle={Styles.rightButton}>
-            <Scene initial key='welcomeView' component={WelcomeView} title='Welcome View' />
+            <Scene key='welcomeView' component={WelcomeView} title='Welcome View' />
+            <Scene key='ansibleView' component={AnsibleView} title='Ansible View' />
             <Scene key='compassView' component={CompassView} title='Compass View' />
             <Scene key='enRouteView' component={EnRouteView} title='En Route View' />
             <Scene key='componentExamples' component={AllComponentsScreen} title='Components' />
