@@ -29,7 +29,7 @@ class NavigationRouter extends Component {
         <Scene key='drawer' component={NavigationDrawer} open={false}>
           <Scene key='drawerChildrenWrapper' navigationBarStyle={Styles.navBar} titleStyle={Styles.title} leftButtonIconStyle={Styles.leftButton} rightButtonTextStyle={Styles.rightButton}>
             <Scene key='welcomeView' component={WelcomeView} title='Welcome View' />
-            <Scene key='ansibleView' component={AnsibleView} title='Ansible View' />
+            <Scene initial key='ansibleView' component={AnsibleView} title='Ansible View' />
             <Scene key='compassView' component={CompassView} title='Compass View' />
             <Scene key='enRouteView' component={EnRouteView} title='En Route View' />
             <Scene key='componentExamples' component={AllComponentsScreen} title='Components' />
