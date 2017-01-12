@@ -71,14 +71,18 @@ class Compass {
   }
 
   start(opts) {
-    /* ToDos: 
-       - Probably start() should be thenable and onInitialPosition 
-          and onHeadingSupported deprecated.
-       - getCurrent and watchPosition should maybe use Promise.race
-       - right now, presumes that no movement is happening on init
+    /* Backlog:
        - Move to async/await, make all the logic consistent
+          -- Start with detection, then features update code
+       - Change ALL forEach's into for-of loops for speed
+       Icebox: 
+          - Perhaps start() should be thenable and onInitialPosition 
+              and onHeadingSupported deprecated.
        Notes: 
+       - Right now, presumes that no movement is happening on init
+          -- To fix this, could use Promise.race with getCurrent and watchPosition
        - ALL instance variable are now set here, not secretly in methods
+          -- This is so they can be refactored elsewhere as needed
     */
     this._radius = opts.radius || 10;
 
@@ -108,12 +112,23 @@ class Compass {
       const heading = this._heading = data.heading;
       const compassLine = this._compassLine = this.getCompassLine();
       this._onHeadingChange({ heading, compassLine });
-      if (!compassLine || !this._hoodData) return;
-      if (this._lastHeadingChange && Date.now()-this._lastHeadingChange < 1000) return;
-      if (this._lastHeading && Math.abs(heading-this._lastHeading) < 5) return;
+      if (this._detectionPending) {
+        // console.tron.log("EMITTER SEES PENDING")
+      }
+      if (!compassLine || !this._hoodData || this._detectionPending) return;
+
+      // MEASURE 1: angle/timing kludge for feature detection
+      // if (this._lastHeadingChange && Date.now()-this._lastHeadingChange < 1000) return;
+      // if (this._lastHeading && Math.abs(heading-this._lastHeading) < 5) return;
+      // END 
+      const startTime = Date.now();
+      this.__frameCounter = 0;
+      this._detectionPending = true;
       this._detectEntities(heading).then(entities => {
         this._entities = entities;
         this._onEntitiesDetected(entities);
+        this._detectionPending = false;
+        console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
       });
       this._lastHeadingChange = Date.now();
       this._lastHeading = heading;
@@ -134,7 +149,6 @@ class Compass {
                  origin = this._currentPosition) {
     if (!origin) return null;
     const headingInRadians = toRadians(heading);
-    // alert(JSON.stringify({ heading, radius, origin }));
     return [origin, {
         longitude: origin.longitude + radius * Math.sin(headingInRadians),
         latitude: origin.latitude + radius * Math.cos(headingInRadians)
@@ -142,20 +156,18 @@ class Compass {
   }
 
   async _detectEntities(heading) {
-    // This one seems useful:
-    if (this._detectionPending) { 
-      console.tron.log("SENDING CACHED ENTITIES");
-      return this._entities;
-    }
-    this._detectionPending = true;
-    let startTime = Date.now()
-    // I guess this pattern is fine:
-    const hoods = await this.getHoodCollisions(); // promisify and await this
-    // console.tron.log("MIDDLE ENTITIES TIME: " + (Date.now()-startTime).toString() + 'ms');
-    await nextFrame();
-    const streets = await this.getStreetCollisions(); // promoisify and await this
-    console.tron.log("END ENTITIES TIME: " + (Date.now()-startTime).toString() + 'ms');
-    this._detectionPending = false;
+    // MEASURE 2: Return cached entities if any _detectEntities frame has not run to completion
+    // if (this._detectionPending) { 
+    //   console.tron.log("SENDING CACHED ENTITIES");
+    //   return this._entities;
+    // }
+    // END
+
+
+    await nextFrame(); this.__frameCounter++;
+    const hoods = await this.getHoodCollisions();
+    await nextFrame(); this.__frameCounter++;
+    const streets = await this.getStreetCollisions();
     return { hoods, streets };
   }
 
@@ -167,58 +179,42 @@ class Compass {
   async getHoodCollisions(compassLineFeature = this._getCompassLineFeature(),
                     adjacentHoods = this._hoodData.adjacentHoods, 
                     currentHood = this._hoodData.currentHood) {
-    return ['YAY'];
-    // return currentHood;
     var adjacents = [];
-    // return compassLatLngs;
-    // return compassLineFeature;
-    // var pointCount = 0;
     var startHeading = this._heading;
     for (let feature of adjacentHoods) {
+      await nextFrame(); this.__frameCounter++;
       const collisions = intersect(compassLineFeature, feature);
-      // pointCount is for debugging only; only here for easy output, very bad
-      // pointCount += flatten(feature.geometry.coordinates).length/2;
       if (!collisions ||
         currentHood.properties.label === feature.properties.label) continue;
-
-      // Possible todo: just add a label property to this object to keep it consistent?
       const type = collisions.geometry.type;
       const coords = collisions.geometry.coordinates;
       const nearestCoord = (type === 'MultiLineString') ? coords[0][0] : coords[0];
       const nearestFeature = point(nearestCoord);
       const originFeature = point(compassLineFeature.geometry.coordinates[0]);
       const collisionDistance = turf.distance(originFeature, nearestFeature, 'miles');
-      // results.push({type, nearestCoord})
-      // return;
       adjacents.push({
         name: feature.properties.label,
         distance: collisionDistance.toFixed(2) + ' miles'
-        // point: nearestCoord
       });
-      await nextFrame();
-      // console.tron.log('hoods: '+(Math.abs(startHeading-this._heading)).toString());
     }
     return {adjacents, current: currentHood.properties.label };
   } 
 
   async getStreetCollisions(compassLineFeature = this._getCompassLineFeature(), 
                       streetsFixture = this._debugStreets ) {
+    // return ['Streets Stubbed'];
     var streetsAhead = [];
     const startHeading = this._heading;
     var startTime, endTime, timeDiff;
     var topStartTime = Date.now();
-    await nextFrame;
-    // if (Math.abs(startHeading-this._heading) < 10 && this._entities) return this._entities.streets;
+    // MEASURE 3: replace forEach with let and call nextFrame several on each iteration
     for (let feature of streetsFixture) {
-      await nextFrame;
+      await nextFrame; this.__frameCounter++;
       const collision = intersect(compassLineFeature, feature);
       // console.tron.log("-STREETS- intersect: "+(Date.now()-topStartTime).toString()+'ms');
       if (!collision) continue;
       const originFeature = point(compassLineFeature.geometry.coordinates[0]);
-      const collisionDistance = turf.distance(originFeature,collision);
-      await nextFrame;
-      // if (Math.abs(startHeading-this._heading) < 10 && this._entities) return this._entities.streets;
-      // console.tron.log("-STREETS- distance: "+(Date.now()-topStartTime).toString()+'ms');
+      const collisionDistance = turf.distance(originFeature,collision); 
       const street = {
         name: feature.properties.name,
         distance: collisionDistance.toFixed(2) + 'miles'  
@@ -226,20 +222,15 @@ class Compass {
       const relations = feature.properties['@relations'];
       if (relations) {
         let routes = {};
-        relations.forEach(relation => {
+        for (let relation of relations) {
+          await nextFrame(); this.__frameCounter++;
           if (relation.reltags.type === "route") {
             routes[relation.reltags.ref] = true;
           }
-        });
+        };
         if (routes) street.routes = Object.keys(routes);
       }
       streetsAhead.push(street);
-      const endTime = Date.now();
-      await nextFrame();
-      // if (Math.abs(startHeading-this._heading) < 10 && this._entities) return this._entities.streets;
-      const timeDiff = (endTime-startTime).toString();
-      // console.tron.log('STREETS: angle - '+ angleDiff.toString() + ', time - '+ timeDiff);
-
     }
     return streetsAhead;
   }
