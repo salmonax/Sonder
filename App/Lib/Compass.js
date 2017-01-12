@@ -24,6 +24,8 @@ import turf from '@turf/turf';
 
 import { clone } from 'cloneextend';
 import vis from 'code42day-vis-why';
+import nextFrame from 'next-frame';
+
 const offset = new Offset();
 
 const toRadians = (heading) => heading * (Math.PI / 180);
@@ -51,6 +53,7 @@ class Compass {
     this.entities = {};
     this._currentPosition = null;
     this._heading = null;
+    this._debugStreets = this.getDebugStreets();
   }
   getDebugHoods() {
     return FixtureApi.getNeighborhoodBoundaries('San Francisco').data;
@@ -71,25 +74,27 @@ class Compass {
     /* ToDos: 
        - Probably start() should be thenable and onInitialPosition 
           and onHeadingSupported deprecated.
-       - getCurrent and watchPosition should probably use Promise.race
-        right now, presumes that no movement is happening on init
+       - getCurrent and watchPosition should maybe use Promise.race
+       - right now, presumes that no movement is happening on init
+       - Move to async/await, make all the logic consistent
+       Notes: 
+       - ALL instance variable are now set here, not secretly in methods
     */
-    this._setEvents(opts);
     this._radius = opts.radius || 10;
 
-    const getInitialPosition = new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          if (!this._currentPosition) this._currentPosition = position.coords;
-          this._onInitialPosition(position);
-          resolve(position);
-        },
-        (error) => reject('Location timed out')
-      );
-    });
-    getInitialPosition
-      .then(position => this._processNeighborhoods(position))
-      .then(hoodData => this._onInitialHoods(hoodData));
+    this._setEvents(opts);
+    this.getInitialPosition()
+      .then(position => { 
+        if (!this._currentPosition) { 
+          this._currentPosition = position.coords;
+        }
+        this._onInitialPosition(position);
+        return this._processNeighborhoods(position);
+      })
+      .then(hoodData => { 
+        this._hoodData = hoodData;
+        this._onInitialHoods(hoodData) 
+      });
 
     this.watchID = navigator.geolocation.watchPosition(position => {
       this._currentPosition = position.coords;
@@ -103,12 +108,25 @@ class Compass {
       const heading = this._heading = data.heading;
       const compassLine = this._compassLine = this.getCompassLine();
       this._onHeadingChange({ heading, compassLine });
-      if (!compassLine) return;
+      if (!compassLine || !this._hoodData) return;
+      if (this._lastHeadingChange && Date.now()-this._lastHeadingChange < 1000) return;
+      if (this._lastHeading && Math.abs(heading-this._lastHeading) < 5) return;
       this._detectEntities(heading).then(entities => {
+        this._entities = entities;
         this._onEntitiesDetected(entities);
       });
-
+      this._lastHeadingChange = Date.now();
+      this._lastHeading = heading;
     });
+  }
+
+  getInitialPosition() {
+    return new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve(position),
+        (error) => reject('Location timed out')
+      );
+    });  
   }
 
   getCompassLine(heading = this._heading, 
@@ -123,15 +141,22 @@ class Compass {
       }];
   }
 
-  _detectEntities(heading) {
-    return new Promise((resolve,reject) => {
-      setTimeout(() => {
-        resolve({ 
-          hoods: this.getHoodCollisions(),
-          streets: this.getStreetCollisions()
-        });
-      },0);
-    });
+  async _detectEntities(heading) {
+    // This one seems useful:
+    if (this._detectionPending) { 
+      console.tron.log("SENDING CACHED ENTITIES");
+      return this._entities;
+    }
+    this._detectionPending = true;
+    let startTime = Date.now()
+    // I guess this pattern is fine:
+    const hoods = await this.getHoodCollisions(); // promisify and await this
+    // console.tron.log("MIDDLE ENTITIES TIME: " + (Date.now()-startTime).toString() + 'ms');
+    await nextFrame();
+    const streets = await this.getStreetCollisions(); // promoisify and await this
+    console.tron.log("END ENTITIES TIME: " + (Date.now()-startTime).toString() + 'ms');
+    this._detectionPending = false;
+    return { hoods, streets };
   }
 
   _getCompassLineFeature() {
@@ -139,20 +164,22 @@ class Compass {
   }
 
   // Probably just wrap this in a requestAnimationFrame for now
-  getHoodCollisions(compassLineFeature = this._getCompassLineFeature(),
+  async getHoodCollisions(compassLineFeature = this._getCompassLineFeature(),
                     adjacentHoods = this._hoodData.adjacentHoods, 
                     currentHood = this._hoodData.currentHood) {
+    return ['YAY'];
     // return currentHood;
     var adjacents = [];
     // return compassLatLngs;
     // return compassLineFeature;
-    var pointCount = 0;
-    adjacentHoods.forEach(feature => {
+    // var pointCount = 0;
+    var startHeading = this._heading;
+    for (let feature of adjacentHoods) {
       const collisions = intersect(compassLineFeature, feature);
       // pointCount is for debugging only; only here for easy output, very bad
       // pointCount += flatten(feature.geometry.coordinates).length/2;
       if (!collisions ||
-        currentHood.properties.label === feature.properties.label) return null;
+        currentHood.properties.label === feature.properties.label) continue;
 
       // Possible todo: just add a label property to this object to keep it consistent?
       const type = collisions.geometry.type;
@@ -168,18 +195,30 @@ class Compass {
         distance: collisionDistance.toFixed(2) + ' miles'
         // point: nearestCoord
       });
-    });
+      await nextFrame();
+      // console.tron.log('hoods: '+(Math.abs(startHeading-this._heading)).toString());
+    }
     return {adjacents, current: currentHood.properties.label };
   } 
 
-  getStreetCollisions(compassLineFeature = this._getCompassLineFeature(), 
-                      streetsFixture = this.getDebugStreets() ) {
-    streetsAhead = [];
-    streetsFixture.forEach(feature => {
+  async getStreetCollisions(compassLineFeature = this._getCompassLineFeature(), 
+                      streetsFixture = this._debugStreets ) {
+    var streetsAhead = [];
+    const startHeading = this._heading;
+    var startTime, endTime, timeDiff;
+    var topStartTime = Date.now();
+    await nextFrame;
+    // if (Math.abs(startHeading-this._heading) < 10 && this._entities) return this._entities.streets;
+    for (let feature of streetsFixture) {
+      await nextFrame;
       const collision = intersect(compassLineFeature, feature);
-      if (!collision) return null;
+      // console.tron.log("-STREETS- intersect: "+(Date.now()-topStartTime).toString()+'ms');
+      if (!collision) continue;
       const originFeature = point(compassLineFeature.geometry.coordinates[0]);
       const collisionDistance = turf.distance(originFeature,collision);
+      await nextFrame;
+      // if (Math.abs(startHeading-this._heading) < 10 && this._entities) return this._entities.streets;
+      // console.tron.log("-STREETS- distance: "+(Date.now()-topStartTime).toString()+'ms');
       const street = {
         name: feature.properties.name,
         distance: collisionDistance.toFixed(2) + 'miles'  
@@ -195,11 +234,18 @@ class Compass {
         if (routes) street.routes = Object.keys(routes);
       }
       streetsAhead.push(street);
-    });
+      const endTime = Date.now();
+      await nextFrame();
+      // if (Math.abs(startHeading-this._heading) < 10 && this._entities) return this._entities.streets;
+      const timeDiff = (endTime-startTime).toString();
+      // console.tron.log('STREETS: angle - '+ angleDiff.toString() + ', time - '+ timeDiff);
+
+    }
     return streetsAhead;
   }
 
   _processNeighborhoods(position) {
+    // ToDo: DEFINITELY async/await this, so that loading the map doesn't hang interface anims!!
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         const rawHoods = this.getDebugHoods();
@@ -209,8 +255,8 @@ class Compass {
         const adjacentHoods = this._findAdjacentHoods(currentHood, rawHoods.features);
         const hoodLatLngs = this.mapifyHoods(adjacentHoods);
         const streetLatLngs = this.mapifyStreets(streets);
-        this._hoodData = { currentHood, adjacentHoods, hoodLatLngs, streetLatLngs };
-        resolve(this._hoodData);
+        const hoodData = { currentHood, adjacentHoods, hoodLatLngs, streetLatLngs };
+        resolve(hoodData);
       },0);
     });
 
