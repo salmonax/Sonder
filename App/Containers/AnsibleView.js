@@ -138,7 +138,7 @@ class AnsibleView extends Component {
           onTap={this.onTap}
         />
 
-            <Text>{this.state.entities ? 
+            {/*<Text>{this.state.entities ? 
               JSON.stringify(this.state.entities.hoods) : 
               "Waiting for entities..."}</Text>
             <Text>{this.state.headingIsSupported ?
@@ -150,7 +150,7 @@ class AnsibleView extends Component {
             <Text>{this.state.annotations ? 
                     JSON.stringify( this.state.annotations ) :
                     null
-                  }</Text>
+                  }</Text>*/}
       </View>
     );
   }

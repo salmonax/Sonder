@@ -54,6 +54,7 @@ class Compass {
     this._currentPosition = null;
     this._heading = null;
     this._debugStreets = this.getDebugStreets();
+    this._debugHoods = this.getDebugHoods();
   }
   getDebugHoods() {
     return FixtureApi.getNeighborhoodBoundaries('San Francisco').data;
@@ -84,18 +85,23 @@ class Compass {
        - ALL instance variable are now set here, not secretly in methods
           -- This is so they can be refactored elsewhere as needed
     */
-    this._radius = opts.radius || 10;
+    var startTime;
 
+    this._radius = opts.radius || 10;
     this._setEvents(opts);
+
     this.getInitialPosition()
       .then(position => { 
         if (!this._currentPosition) { 
           this._currentPosition = position.coords;
         }
         this._onInitialPosition(position);
+        this.__frameCounter = 0;
+        startTime = Date.now();
         return this._processNeighborhoods(position);
       })
       .then(hoodData => { 
+        console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
         this._hoodData = hoodData;
         this._onInitialHoods(hoodData) 
       });
@@ -128,7 +134,7 @@ class Compass {
         this._entities = entities;
         this._onEntitiesDetected(entities);
         this._detectionPending = false;
-        console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
+        // console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
       });
       this._lastHeadingChange = Date.now();
       this._lastHeading = heading;
@@ -162,8 +168,6 @@ class Compass {
     //   return this._entities;
     // }
     // END
-
-
     await nextFrame(); this.__frameCounter++;
     const hoods = await this.getHoodCollisions();
     await nextFrame(); this.__frameCounter++;
@@ -235,56 +239,55 @@ class Compass {
     return streetsAhead;
   }
 
-  _processNeighborhoods(position) {
-    // ToDo: DEFINITELY async/await this, so that loading the map doesn't hang interface anims!!
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const rawHoods = this.getDebugHoods();
-        const streets = this.getDebugStreets();
-        // The rest might end up as instance variables:
-        const currentHood = this._findCurrentHood(position, rawHoods.features);
-        const adjacentHoods = this._findAdjacentHoods(currentHood, rawHoods.features);
-        const hoodLatLngs = this.mapifyHoods(adjacentHoods);
-        const streetLatLngs = this.mapifyStreets(streets);
-        const hoodData = { currentHood, adjacentHoods, hoodLatLngs, streetLatLngs };
-        resolve(hoodData);
-      },0);
-    });
-
-    // WARNING: this will *definitely* need to be done asynchronously!
-    // Just grabbing them badly for first refactor
-
+  async _processNeighborhoods(position) {
+    let startTime = Date.now();
+    const rawHoods = this._debugHoods;
+    await nextFrame(); this.__frameCounter++;
+    console.tron.log('getDebugHoods: ' + (Date.now()-startTime).toString()+'ms frames: ' + this.__frameCounter.toString());
+    const streets = this._debugStreets; 
+    await nextFrame(); this.__frameCounter++;
+    const currentHood = await this._findCurrentHood(position, rawHoods.features);
+    await nextFrame(); this.__frameCounter++;
+    console.tron.log('findCurrentHood: ' + (Date.now()-startTime).toString()+'ms frames: ' + this.__frameCounter.toString())
+    const adjacentHoods = await this._findAdjacentHoods(currentHood, rawHoods.features);
+    await nextFrame(); this.__frameCounter++;
+    console.tron.log('findAdjacentHoods: ' + (Date.now()-startTime).toString()+'ms frames: ' + this.__frameCounter.toString())
+    const hoodLatLngs = this.mapifyHoods(adjacentHoods);
+    await nextFrame(); this.__frameCounter++;
+    console.tron.log('mapifyHoods: ' + (Date.now()-startTime).toString()+'ms frames: ' + this.__frameCounter.toString())
+    const streetLatLngs = this.mapifyStreets(streets);
+    await nextFrame(); this.__frameCounter++;
+    console.tron.log('mapifyStreets: ' + (Date.now()-startTime).toString()+'ms frames: ' + this.__frameCounter.toString())
+    const hoodData = { currentHood, adjacentHoods, hoodLatLngs, streetLatLngs };
+    return hoodData;
   }
 
-  _findCurrentHood(position, hoodFeatures) {
-    return hoodFeatures.filter(feature => {
+  async _findCurrentHood(position, hoodFeatures) {
+    for (let feature of hoodFeatures) {
       const curPosGeo = point(toTuple(position.coords)).geometry;
-      return inside(curPosGeo, feature);
-    })[0];
+      if (inside(curPosGeo, feature)) return feature;
+      await nextFrame(); this.__frameCounter++;
+    }
   }
 
-  _findAdjacentHoods(currentHood, hoodFeatures) {
+  async _findAdjacentHoods(currentHood, hoodFeatures) {
     // This does an in-place grow on currentHood in order to find intersections
     // Not doing this can sometimes turn up false negatives when polys
     // don't fully overlap.
     // Note: Not yet working with MultiPolys.
     const bloatedHood = this.bloatAndSimplify(currentHood);
-    let adjacentHoods = hoodFeatures.filter(feature => {
-      return intersect(bloatedHood, feature);
-    });
-    // Simplifies with the D3-derived Visvalingam algorithm
-    // Clone first to avoid changing source data
-    adjacentHoods = clone(adjacentHoods);
-    adjacentHoods.forEach(feature => {
-      // No MultiPoly check... Just want to see if this works
-      let pointCount = flatten(feature.geometry.coordinates).length/2;
-      feature.geometry.coordinates[0] = vis(feature.geometry.coordinates[0],pointCount*0.5);
-    });
-    // Alternate implementation using the Douglas-Peucker algorithm, 
-    // which doesn't work quite as well:
-    // adjacentHoods = clone(adjacentHoods).map(feature => {
-    //   return turf.simplify(feature,0.0002,false);      
-    // });
+    var adjacentHoods = [];
+    for (feature of hoodFeatures) {
+      if (intersect(bloatedHood, feature)) {
+        feature = clone(feature);
+        // Simplifies with the D3-derived Visvalingam algorithm:
+        // (Clone first to avoid changing source data)
+        let pointCount = flatten(feature.geometry.coordinates).length/2;
+        feature.geometry.coordinates[0] = vis(feature.geometry.coordinates[0],pointCount*0.5);
+        adjacentHoods.push(feature);
+        await nextFrame(); this.__frameCounter++; 
+      }
+    }
     return adjacentHoods;
   }
 
