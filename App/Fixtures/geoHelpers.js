@@ -35,7 +35,7 @@ exports.makeCentroidCollection = (featureCollection) =>
 exports.makeBoundaryCollection = (featureCollectionData) => {
   boundaryCollection = [];
 
-  featureCollectionData.forEach(featureCollectionDatum => {
+  featureCollectionData.forEach((featureCollectionDatum, index) => {
     const featureCollection = featureCollectionDatum.collection;
     let feature = turf.union(...featureCollection.features);
     const type = feature.geometry.type;
@@ -46,6 +46,8 @@ exports.makeBoundaryCollection = (featureCollectionData) => {
 
     // Apply given properties, if they exist
     feature.properties = featureCollectionDatum.properties || feature.properties;
+    // Apply the index, just as in makeIndexedHoods:
+    feature.properties.index = index;
     boundaryCollection.push(feature);
     console.log("Finished one.");
   });
