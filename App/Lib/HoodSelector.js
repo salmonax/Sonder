@@ -2,16 +2,16 @@ import inside from '@turf/inside';
 import nextFrame from 'next-frame';
 import { getRegionBBox, toCoords, toTuples, toTuple } from './MapHelpers';
 
-const REL_PATH = '../Fixtures/indexed/'
-const REGION_FILE = 'bayAreaBoundaries.json'
 // These are in the same order as in buildBoundaries.js
 // ToDo: make this less brittle!
-const HOOD_FILES = [
-  'sanFrancisco.json',
-  'southSF.json',
-  'eastBay.json',
-  'siliconValley.json',
-];
+const requireByIndex = (file) => {
+  switch (file) {
+    case 0: return require('../Fixtures/indexed/sanFrancisco.json');
+    case 1: return require('../Fixtures/indexed/southSF.json');
+    case 2: return require('../Fixtures/indexed/eastBay.json');
+    case 3: return require('../Fixtures/indexed/siliconValley.json');
+  }
+}
 
 // ToDo: put this into MapHelpers:
 const toPoint = (latLng) => ({ 
@@ -23,7 +23,8 @@ const toPoint = (latLng) => ({
 class HoodSelector {
   constructor() {
     // Loads region boundaries unconditionally
-    this._regions = require(REL_PATH+REGION_FILE).features;
+    // this._regions = require(REL_PATH+REGION_FILE).features;
+    this._regions = require('../Fixtures/indexed/bayAreaBoundaries.json').features;
 
     // These are all the other instance variables used:
     this._regionHoods = null;
@@ -32,10 +33,13 @@ class HoodSelector {
     this._wasLastInBounds = false;
 
     // Set event hook functions, just like in Compass
-    const EVENTS = ['onRegionWillLoad','onRegonDidLoad'];
+    const EVENTS = ['onRegionWillLoad','onRegionDidLoad'];
     for (let event of EVENTS) {
-      this[event] = (func) => 
-        if (typeof func === 'function') this['_'+event] = func;
+      this[event] = (func) => {
+        if (typeof func === 'function') {
+          this['_'+event] = func;
+        }
+      };
       this['_'+event] = () => {};
     }
   }
@@ -47,25 +51,25 @@ class HoodSelector {
     return this._wasLastInBounds;
   }
   _refresh(point) {
-    const currentHood = this._currentHood;
-    if (!currentHood) return this._init(point); // 1
-    if (inside(point, currentHood)) return true; // 2
-    if ( this._setHood( this._selectHood(point, this._adjacentHoods) ) return true; // 3
+    if (!this._currentHood) return this._init(point); // 1
+    if (inside(point, this._currentHood)) return true; // 2
+    if ( this._setHood( this._selectHood(point, this._adjacentHoods) ) ) return true; // 3
     if (!inside(point, this._currentRegion)) return this._init(point); // 4
     return this._setHood (this._selectHood(point, this._regionHoods) ); // 5
   }
   _init(point) {
     this._currentRegion = this._selectCurrentRegion(point);
     if (this._currentRegion === null) return false; // 1
-    this._regionHoods = this._loadRegionHoods(region); // 2
+    this._regionHoods = this._loadRegionHoods(this._currentRegion); // 2
     return this._setHood( this._selectHood(point, this._regionHoods) ); // 3
   }
 
-  _loadRegionHoods (region) {
+  _loadRegionHoods(region) {
     this._onRegionWillLoad(region);
-    const regionHoods = require(REL_PATH+HOOD_FILES[region.properties.index]);
-    // hook onRegionDidLoad
-    this._onRegionDidLoad(regionHoods);
+    const start = Date.now();
+    const regionHoods = requireByIndex(region.properties.index).features;
+    console.tron.log('Loaded '+region.properties.label+': '+(Date.now()-start).toFixed()+'ms');
+    this._onRegionDidLoad(regionHoods, region);
   }
 
   // Sets current hood and adjacent hood; 
@@ -122,6 +126,9 @@ export default hoodSelector;
     - Assuming refresh() has been called, the consumer can access various getters
       -- Those getters are synchronous and fast, thanks to indexing
       -- Getters: getAdjacentHoods(), getCurrentHood(), getRegionHoods()
+    Quirks:
+      - this._currentHood is never set to null even if no hood found, but this._currentRegion IS when no region found
+        -- Was unintentional at first, but keeping _currentHoods prevents a fallback to _init when leaving in-region holes
 **/
 // refresh(): This is the main public method that the rest of the logic is built for. It uses a series of fallbacks
 // for refreshing the neighborhood information as quickly as possible.
@@ -169,5 +176,5 @@ export default hoodSelector;
   NOTE: if you're not in the current region, you're COMPLETELY out of bounds..
     So there are two cases:
       1. _currentHood isn't found, but _currentRegion exists
-      2. _currentHood isn't found AND _currentRegion is null
+      2. _currentHood isn't found, but _currentRegion is null
 */
