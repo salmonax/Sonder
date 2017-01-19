@@ -46,8 +46,10 @@ class HoodSelector {
 
   // See bottom of file for detailed documentatoin on refresh() and _init()
   refresh(position) {
+    const start = Date.now();
     const point = toPoint(position);
     this._wasLastInBounds = this._refresh(point);
+    console.tron.log('REFRESH: '+(Date.now()-start)+'ms');
     return this._wasLastInBounds;
   }
   _refresh(point) {
@@ -70,6 +72,7 @@ class HoodSelector {
     const regionHoods = requireByIndex(region.properties.index).features;
     console.tron.log('Loaded '+region.properties.label+': '+(Date.now()-start).toFixed()+'ms');
     this._onRegionDidLoad(regionHoods, region);
+    return regionHoods;
   }
 
   // Sets current hood and adjacent hood; 
@@ -77,12 +80,12 @@ class HoodSelector {
   _setHood(hood) {
     if (!hood) return false;
     this._currentHood = hood;
-    this._adjacentHoods = this.getAdjacentHoods(hood);
+    this._adjacentHoods = this._selectAdjacentHoods(hood);
     return true;
   }
-  _selectHood(point, hoods) {
+  _selectHood(point, hoods, context) {
     for (let hood of hoods) {
-      if (inside(point, adjacentHood)) return hood;
+      if (inside(point, hood)) return hood;
       // await nextFrame(); // test this synchronously first
     }
     return null;
@@ -96,8 +99,7 @@ class HoodSelector {
   }
 
   // This is a "dumb" synchronous function that simply pushes indexed adjacents to an array
-  getAdjacentHoods(centerHood = this._currentHood) {
-    if (!this._wasLastInBounds) return null;
+  _selectAdjacentHoods(centerHood = this._currentHood) {
     const adjacentIndices = centerHood.properties.adjacents;
     const adjacentHoods = [];
     for (let adjacentIndex of adjacentIndices) {
@@ -105,6 +107,9 @@ class HoodSelector {
     }
     return adjacentHoods;
   }
+  // These are the "dumb" public functions. 
+  // See notes on refresh() about this._wasLastInBounds
+  getAdjacentHoods = () => (this._wasLastInBounds) ? this._adjacentHoods : null;
   getCurrentHood = () => (this._wasLastInBounds) ? this._currentHood : null;
   getCurrentRegion = () => this._currentRegion;
 }

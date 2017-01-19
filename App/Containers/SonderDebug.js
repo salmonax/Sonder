@@ -68,6 +68,7 @@ class SonderView extends Component {
           hoods: hoodLatLngs,
           streets: streetLatLngs
         });
+        this.setHoodAnnotations(currentHood, adjacentHoods);
       },
       onHeadingSupported: (headingIsSupported) => 
         this.setState({ headingIsSupported }),
