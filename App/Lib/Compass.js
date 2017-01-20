@@ -61,12 +61,16 @@ class Compass {
     this._debugHoods = this.getDebugHoods();
     // Delegate hood changes to HoodSmith
     HoodSmith.onHoodChange((hoodData) => {
-      // Note: only using Object.assign here to carry over legacy LatLngs, but means they won't actually update
+      // Note: only using Object.assign here to carry over legacy LatLngs, but means they won't actually update on move
       // (Definitely not going to bother calling mapifyHoods here)
       // ToDo: replace newHood with currentHood in all onHoodChange refs, make sure its param is called hoodData and not just data
       const currentHood = hoodData.newHood;
       const { adjacentHoods } = hoodData;
-      this._hoodData = Object.assign(this._hoodData, { currentHood, adjacentHoods });
+      if (this._hoodData) {
+        this._hoodData = Object.assign(this._hoodData, { currentHood, adjacentHoods });
+      } else {
+        this._hoodData = { currentHood, adjacentHoods }
+      }
       this._onHoodChange(hoodData);
     });
   }
@@ -127,6 +131,18 @@ class Compass {
       this._currentPosition = position.coords;
       HoodSmith.refresh(this._currentPosition);
       this._onPositionChange(position); // probably should pass position.coords
+      // Note: the following is kludgy; it's called identically when heading is updated,
+      // but here it has to be wrapped in a _hoodData check to avoid init errors, yuck!
+      // ToDo: heading and position change MUST be refactored with a better common abstraction
+      const compassLine = this._compassLine = this.getCompassLine(); // also carried over from headingChange
+      if (!compassLine || !this._hoodData || this._detectionPending || !this._lastHeading) return; // important debouncer and flow checks
+      this._detectionPending = true;
+      this._detectEntities(this._lastHeading).then(entities => {
+        this._entities = entities;
+        this._onEntitiesDetected(entities);
+        this._detectionPending = false;
+        // console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
+      });
     });
 
     ReactNativeHeading.start(opts.minAngle || 1)
