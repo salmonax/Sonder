@@ -13,7 +13,13 @@ import {
 
 import Styles from './Styles/MapViewStyle'
 import Compass from '../Lib/Compass'
-import { hoodToAnnotations, reverseTuples, getPrettyBearing, toTuples } from '../Lib/MapHelpers'
+import { 
+  hoodToAnnotations, 
+  reverseTuples, 
+  getPrettyBearing, 
+  toTuples,
+  binduMapBox,
+} from '../Lib/MapHelpers'
 
 const accessToken = 'pk.eyJ1Ijoic2FsbW9uYXgiLCJhIjoiY2l4czY4dWVrMGFpeTJxbm5vZnNybnRrNyJ9.MUj42m1fjS1vXHFhA_OK_w';
 Mapbox.setAccessToken(accessToken);
@@ -116,7 +122,7 @@ class SonderView extends Component {
       // fillAlpha: 0.5,
       // alpha: 0.5,
       class: 'hood',
-      fillColor: '#AA2222',
+      fillColor: '#AA9922',
       strokeColor: '#FFFFFF',
       strokeWidth: 10,
       // strokeAlpha: .5,
@@ -129,7 +135,7 @@ class SonderView extends Component {
         // fillAlpha: 0.5,
         // alpha: 0.5,
         class: 'hood',
-        fillColor: '#2222AA',
+        fillColor: binduMapBox(adjacentHood.properties.label),
         strokeColor: '#FFFFFF',
         strokeWidth: 10,
         // strokeAlpha: .5,
@@ -205,6 +211,13 @@ class SonderView extends Component {
         <Text>{this.state.headingIsSupported ?
                 getPrettyBearing(this.state.heading)
                 : "Heading unsupported." }</Text>
+        <Text>{this.state.entities ? 
+              JSON.stringify(this.state.entities.hoods.current.name) : 
+              "Waiting for entities..."}</Text>
+        <Text>{this.state.entities ? 
+              JSON.stringify(this.state.entities.hoods.adjacents) : 
+              "Waiting for entities..."}</Text>
+
 
             {/*<Text>{this.state.entities ? 
               JSON.stringify(this.state.entities.hoods) : 

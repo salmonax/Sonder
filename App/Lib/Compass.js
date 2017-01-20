@@ -60,7 +60,15 @@ class Compass {
     this._debugStreets = this.getDebugStreets();
     this._debugHoods = this.getDebugHoods();
     // Delegate hood changes to HoodSmith
-    HoodSmith.onHoodChange((data) => this._onHoodChange(data));
+    HoodSmith.onHoodChange((hoodData) => {
+      // Note: only using Object.assign here to carry over legacy LatLngs, but means they won't actually update
+      // (Definitely not going to bother calling mapifyHoods here)
+      // ToDo: replace newHood with currentHood in all onHoodChange refs, make sure its param is called hoodData and not just data
+      const currentHood = hoodData.newHood;
+      const { adjacentHoods } = hoodData;
+      this._hoodData = Object.assign(this._hoodData, { currentHood, adjacentHoods });
+      this._onHoodChange(hoodData);
+    });
   }
   getDebugHoods() {
     return FixtureApi.getNeighborhoodBoundaries('San Francisco').data;
@@ -211,8 +219,8 @@ class Compass {
       adjacents.push({
         name: feature.properties.label,
         distance: collisionDistance.toFixed(2) + ' miles',
-        coordinates: feature.geometry.coordinates,
-        feature,
+        // coordinates: feature.geometry.coordinates,
+        // feature,
       });
     }
     const current = {
