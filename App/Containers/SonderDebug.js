@@ -27,6 +27,7 @@ Mapbox.setAccessToken(accessToken);
 const hoods = Compass.getDebugHoods();
 
 class SonderView extends Component {
+  currentHoodColor = '#AA9922';
   state = {
     zoom: 12,
     userTrackingMode: Mapbox.userTrackingMode.follow,
@@ -183,6 +184,15 @@ class SonderView extends Component {
 
   render() {
     StatusBar.setHidden(true);
+    const dynamicStyles = StyleSheet.create({
+      currentHood: {
+        position: 'absolute',
+        right: 0,
+        bottom: 0,
+        fontSize: 32,
+        color: '#AA9922'
+      }
+    });
     return (
       <View style={styles.container}>
         <MapView
@@ -211,13 +221,11 @@ class SonderView extends Component {
         <Text>{this.state.headingIsSupported ?
                 getPrettyBearing(this.state.heading)
                 : "Heading unsupported." }</Text>
+        <Text style={dynamicStyles.currentHood}>{this.state.entities ? 
+              this.state.entities.hoods.current.name : ''}</Text>
         <Text>{this.state.entities ? 
-              JSON.stringify(this.state.entities.hoods.current.name) : 
-              "Waiting for entities..."}</Text>
-        <Text>{this.state.entities ? 
-              JSON.stringify(this.state.entities.hoods.adjacents) : 
-              "Waiting for entities..."}</Text>
-
+                JSON.stringify(this.state.entities.hoods.adjacents) : 
+                ''}</Text>
 
             {/*<Text>{this.state.entities ? 
               JSON.stringify(this.state.entities.hoods) : 
@@ -245,6 +253,12 @@ const mapStateToProps = (state) => {
 }
 
 const styles = StyleSheet.create({
+  currentHood: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    fontSize: 32
+  },
   container: {
     flex: 1,
     alignItems: 'stretch'

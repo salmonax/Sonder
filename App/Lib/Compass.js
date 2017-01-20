@@ -131,18 +131,17 @@ class Compass {
       this._currentPosition = position.coords;
       HoodSmith.refresh(this._currentPosition);
       this._onPositionChange(position); // probably should pass position.coords
-      // Note: the following is kludgy; it's called identically when heading is updated,
-      // but here it has to be wrapped in a _hoodData check to avoid init errors, yuck!
-      // ToDo: heading and position change MUST be refactored with a better common abstraction
-      const compassLine = this._compassLine = this.getCompassLine(); // also carried over from headingChange
-      if (!compassLine || !this._hoodData || this._detectionPending || !this._lastHeading) return; // important debouncer and flow checks
-      this._detectionPending = true;
-      this._detectEntities(this._lastHeading).then(entities => {
-        this._entities = entities;
-        this._onEntitiesDetected(entities);
-        this._detectionPending = false;
-        // console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
-      });
+      // ToDo: this allows heading-stationary entity updates, but there's something in the logic that causes it to lag, crash, and suck; fix
+      // Idea: maybe tag-team with headingUpdated, such that it is never called once for subsequent events?
+      // const compassLine = this._compassLine = this.getCompassLine(); // also carried over from headingChange
+      // if (!compassLine || !this._hoodData || this._detectionPending || !this._lastHeading) return; // important debouncer and flow checks
+      // this._detectionPending = true;
+      // this._detectEntities(this._lastHeading).then(entities => {
+      //   this._entities = entities;
+      //   this._onEntitiesDetected(entities);
+      //   this._detectionPending = false;
+      //   // console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
+      // });
     });
 
     ReactNativeHeading.start(opts.minAngle || 1)
