@@ -193,6 +193,12 @@ class SonderView extends Component {
         color: '#AA9922'
       }
     });
+    const nearestAdjacentHood = (this.state.entities) ? 
+      this.state.entities.hoods.adjacents.sort((a,b) => {
+        return (parseFloat(a.distance) - parseFloat(b.distance));
+      })[0] : 
+      '';
+    const nearestAdjacentHoodLabel = nearestAdjacentHood.name +' ('+nearestAdjacentHood.distance+')'
     return (
       <View style={styles.container}>
         <MapView
@@ -223,9 +229,7 @@ class SonderView extends Component {
                 : "Heading unsupported." }</Text>
         <Text style={dynamicStyles.currentHood}>{this.state.entities ? 
               this.state.entities.hoods.current.name : ''}</Text>
-        <Text>{this.state.entities ? 
-                JSON.stringify(this.state.entities.hoods.adjacents) : 
-                ''}</Text>
+        <Text>{JSON.stringify(nearestAdjacentHoodLabel)}</Text>
 
             {/*<Text>{this.state.entities ? 
               JSON.stringify(this.state.entities.hoods) : 
