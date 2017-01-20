@@ -73,6 +73,7 @@ class SonderView extends Component {
       onHeadingSupported: (headingIsSupported) => 
         this.setState({ headingIsSupported }),
       onPositionChange: (lastPosition) => {
+        console.tron.log("POSITION CHANGED: " + JSON.stringify(lastPosition.coords));
         const { latitude, longitude } = lastPosition.coords;
         const ops = { latitude, longitude };
         if (this._lastHeading) { ops.direction = this._lastHeading }
@@ -81,6 +82,10 @@ class SonderView extends Component {
         }
         this.setState({ lastPosition })
       },
+      onHoodChange: ({newHood, adjacentHoods}) => {
+        this.setState({ currentHood: newHood, adjacentHoods });
+        this.setHoodAnnotations(newHood, adjacentHoods);
+      },
       onHeadingChange: (headingData) => {
         this._lastHeading = headingData.heading;
         const direction = headingData.heading;    
@@ -88,6 +93,7 @@ class SonderView extends Component {
           const { latitude, longitude } = headingData.position;
           this._map.easeTo({ direction, latitude, longitude }, true, () => {});
         } else {
+          console.tron.log('Position is missing! Mario is missing! Where is Carmen San Diego?!');
           this._map.setDirection(headingData.heading);
         }
         // this.setCompassAnnotation(headingData);

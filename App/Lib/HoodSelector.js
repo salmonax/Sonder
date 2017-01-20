@@ -33,7 +33,10 @@ class HoodSelector {
     this._wasLastInBounds = false;
 
     // Set event hook functions, just like in Compass
-    const EVENTS = ['onRegionWillLoad','onRegionDidLoad'];
+    const EVENTS = [ 'onRegionWillLoad',
+                     'onRegionDidLoad', 
+                     'onHoodChange',
+                   ];
     for (let event of EVENTS) {
       this[event] = (func) => {
         if (typeof func === 'function') {
@@ -48,8 +51,15 @@ class HoodSelector {
   refresh(position) {
     const start = Date.now();
     const point = toPoint(position);
+    const lastHood = this._currentHood;
     this._wasLastInBounds = this._refresh(point);
     console.tron.log('REFRESH: '+(Date.now()-start)+'ms');
+    if (lastHood && this._currentHood !== lastHood) {
+      this._onHoodChange({
+        newHood: this._currentHood, 
+        adjacentHoods: this._adjacentHoods 
+      });
+    } 
     return this._wasLastInBounds;
   }
   _refresh(point) {

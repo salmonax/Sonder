@@ -44,7 +44,9 @@ class Compass {
                     'onHeadingChange',
                     'onCompassReady',
                     'onInitialHoods',
-                    'onEntitiesDetected'];
+                    'onEntitiesDetected',
+                    'onHoodChange',
+                  ];
     this.EVENTS.forEach(event => {
       this['_'+event] = () => {};
       this[event] = (func) => {
@@ -57,6 +59,8 @@ class Compass {
     this._heading = null;
     this._debugStreets = this.getDebugStreets();
     this._debugHoods = this.getDebugHoods();
+    // Delegate hood changes to HoodSmith
+    HoodSmith.onHoodChange((data) => this._onHoodChange(data));
   }
   getDebugHoods() {
     return FixtureApi.getNeighborhoodBoundaries('San Francisco').data;
