@@ -184,21 +184,38 @@ class SonderView extends Component {
 
   render() {
     StatusBar.setHidden(true);
-    const dynamicStyles = StyleSheet.create({
-      currentHood: {
-        position: 'absolute',
-        right: 0,
-        bottom: 0,
-        fontSize: 32,
-        color: '#AA9922'
-      }
-    });
     const nearestAdjacentHood = (this.state.entities) ? 
       this.state.entities.hoods.adjacents.sort((a,b) => {
         return (parseFloat(a.distance) - parseFloat(b.distance));
       })[0] : 
       '';
-    const nearestAdjacentHoodLabel = nearestAdjacentHood.name +' ('+nearestAdjacentHood.distance+')'
+    const dynamicStyles = StyleSheet.create({
+      currentHood: {
+        position: 'absolute',
+        paddingLeft: 10,
+        paddingRight: 10,
+        right: 20,
+        bottom: 72,
+        fontSize: 32,
+        borderColor: '#AA9922',
+        borderWidth: 1,
+        color: '#AA9922',
+        backgroundColor: '#000000'
+      },
+      adjacentHood: {
+        position: 'absolute',
+        paddingLeft: 10,
+        paddingRight: 10,
+        right: 5,
+        top: 80,
+        fontSize: 20,
+        backgroundColor: '#000000',
+        color: (nearestAdjacentHood && this.state.entities) ? binduMapBox(nearestAdjacentHood.name) : '#ffffff',
+        borderColor: (nearestAdjacentHood && this.state.entities) ? binduMapBox(nearestAdjacentHood.name) : '#ffffff',
+        borderWidth: 1
+      }
+    });
+    const nearestAdjacentHoodLabel = (nearestAdjacentHood && this.state.entities) ? nearestAdjacentHood.name +' ('+nearestAdjacentHood.distance+')' : '';
     return (
       <View style={styles.container}>
         <MapView
@@ -227,9 +244,9 @@ class SonderView extends Component {
         <Text>{this.state.headingIsSupported ?
                 getPrettyBearing(this.state.heading)
                 : "Heading unsupported." }</Text>
-        <Text style={dynamicStyles.currentHood}>{this.state.entities ? 
-              this.state.entities.hoods.current.name : ''}</Text>
-        <Text>{JSON.stringify(nearestAdjacentHoodLabel)}</Text>
+        {this.state.entities ? <Text style={dynamicStyles.currentHood}>{this.state.entities ? 
+              this.state.entities.hoods.current.name : ''}</Text> : null }
+        {this.state.entities ? <Text style={dynamicStyles.adjacentHood}>{nearestAdjacentHoodLabel}</Text> : null }
 
             {/*<Text>{this.state.entities ? 
               JSON.stringify(this.state.entities.hoods) : 
