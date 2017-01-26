@@ -8,18 +8,27 @@ import {
   Text,
   StatusBar,
   View,
-  ScrollView
+  ScrollView,
+  Dimensions,
 } from 'react-native';
 
-import Styles from './Styles/MapViewStyle'
-import Compass from '../Lib/Compass'
+import Styles from './Styles/MapViewStyle';
+import Compass from '../Lib/Compass';
 import { 
   hoodToAnnotations, 
   reverseTuples, 
   getPrettyBearing, 
   toTuples,
   binduMapBox,
-} from '../Lib/MapHelpers'
+} from '../Lib/MapHelpers';
+import Svg, {
+  Circle, 
+  Line,
+} from 'react-native-svg';
+
+const { width, height } = Dimensions.get('window');
+const centerX = Math.round(height/2);
+const centerY = Math.round(width/2);
 
 const accessToken = 'pk.eyJ1Ijoic2FsbW9uYXgiLCJhIjoiY2l4czY4dWVrMGFpeTJxbm5vZnNybnRrNyJ9.MUj42m1fjS1vXHFhA_OK_w';
 Mapbox.setAccessToken(accessToken);
@@ -241,6 +250,12 @@ class SonderView extends Component {
           onLongPress={this.onLongPress}
           onTap={this.onTap}
         />
+        <Svg
+          style={styles.overla}y
+          height="20"
+          width="20"
+        >
+        </Svg>
         <Text>{this.state.headingIsSupported ?
                 getPrettyBearing(this.state.heading)
                 : "Heading unsupported." }</Text>
@@ -274,6 +289,11 @@ const mapStateToProps = (state) => {
 }
 
 const styles = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
   currentHood: {
     position: 'absolute',
     right: 0,

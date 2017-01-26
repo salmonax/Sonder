@@ -164,13 +164,13 @@ class Compass {
       // END
       const startTime = Date.now();
       this.__frameCounter = 0;
-      this._detectionPending = true;
-      this._detectEntities(heading).then(entities => {
-        this._entities = entities;
-        this._onEntitiesDetected(entities);
-        this._detectionPending = false;
-        // console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
-      });
+      // this._detectionPending = true;
+      // this._detectEntities(heading).then(entities => {
+      //   this._entities = entities;
+      //   this._onEntitiesDetected(entities);
+      //   this._detectionPending = false;
+      //   // console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
+      // });
       this._lastHeadingChange = Date.now();
       this._lastHeading = heading;
     });

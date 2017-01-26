@@ -54,6 +54,7 @@
     "react-native-maps": "^0.11.0",
     "react-native-popup-dialog": "^0.4.16",
     "react-native-router-flux": "^3.37.0",
+    "react-native-svg": "^5.1.4",
     "react-native-vector-icons": "^3.0.0",
     "react-redux": "^4.4.6",
     "reactotron": "^0.9.0",
