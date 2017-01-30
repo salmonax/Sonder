@@ -94,16 +94,17 @@ exports.findAdjacentHoods = (currentHood, hoodFeatures) => {
 
 const growBBox = (bbox, d = 0.0000001) => [bbox[0]-d,bbox[1]-d,bbox[2]+d,bbox[3]+d];
 
-exports.makeIndexedCollectionFast = (hoodCollection, pure) => {
+exports.makeIndexedCollectionFast = (hoodCollection, opts) => {
   const start = Date.now();
-  if (pure) { hoodCollection = clone(hoodCollection); }
+  if (opts.pure) { hoodCollection = clone(hoodCollection); }
   const hoods = hoodCollection.features;
   const hoodTotal = hoods.length;
   console.log('Initializing adjacent neighborhoods properties');
   const tree = rtree(10);
   tree.geoJSON(hoodCollection);
-
   hoods.forEach((hood, index) => { 
+    // optionally clean blockids
+    if (opts.clean) delete hood.properties.blockids;
     hood.properties.index = index;
     hood.properties.adjacents = [];
   });
@@ -133,9 +134,9 @@ exports.makeIndexedCollectionFast = (hoodCollection, pure) => {
   return hoodCollection;
 }
 
-exports.makeIndexedCollection = (hoodCollection, pure) => {
+exports.makeIndexedCollection = (hoodCollection, opts) => {
   const start = Date.now();
-  if (pure) { hoodCollection = clone(hoodCollection); }
+  if (opts.pure) { hoodCollection = clone(hoodCollection); }
   const hoods = hoodCollection.features;
   const hoodTotal = hoodCollection.features.length;
   console.log('Initializing adjacent neighborhoods properties');
