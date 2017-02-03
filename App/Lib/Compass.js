@@ -154,7 +154,7 @@ class Compass {
       //lifecycle functions
       this._onHeadingChange({ heading, compassLine, position: this._currentPosition });
       if (this._detectionPending) {
-        // console.tron.log("EMITTER SEES PENDING")
+        console.tron.log("EMITTER SEES PENDING")
       }
       if (!compassLine || !this._hoodData || this._detectionPending) return;
 
@@ -164,13 +164,13 @@ class Compass {
       // END
       const startTime = Date.now();
       this.__frameCounter = 0;
-      // this._detectionPending = true;
-      // this._detectEntities(heading).then(entities => {
-      //   this._entities = entities;
-      //   this._onEntitiesDetected(entities);
-      //   this._detectionPending = false;
-      //   // console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
-      // });
+      this._detectionPending = true;
+      this._detectEntities(heading).then(entities => {
+        this._entities = entities;
+        this._onEntitiesDetected(entities);
+        this._detectionPending = false;
+        console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
+      });
       this._lastHeadingChange = Date.now();
       this._lastHeading = heading;
     });

@@ -25,10 +25,12 @@ import Svg, {
   Circle, 
   Line,
 } from 'react-native-svg';
+import Orientation from 'react-native-orientation';
 
-const { width, height } = Dimensions.get('window');
-const centerX = Math.round(height/2);
-const centerY = Math.round(width/2);
+let { width, height } = Dimensions.get('window');
+let centerY = Math.round(height/2);
+let centerX = Math.round(width/2);
+console.tron.log(JSON.stringify({ width, height, centerX, centerY }));
 
 const accessToken = 'pk.eyJ1Ijoic2FsbW9uYXgiLCJhIjoiY2l4czY4dWVrMGFpeTJxbm5vZnNybnRrNyJ9.MUj42m1fjS1vXHFhA_OK_w';
 Mapbox.setAccessToken(accessToken);
@@ -121,6 +123,10 @@ class SonderView extends Component {
     });
   }
 
+  componentDidMount() {
+    Orientation.addOrientationListener(this._orientationDidChange);
+  }
+
   componentWillUnmount() {
     Compass.stop();
   }
@@ -161,6 +167,18 @@ class SonderView extends Component {
       ]
     }) 
     // Draw the adjacenthood annotations, with random color, then with BinduRGB
+  }
+  
+  _orientationDidChange(orientation) {
+    // Listener seems to fire too early for Dimensions.get() to work
+    // Just switch hte previous values:
+    const lastWidth = width;
+    width = height;
+    height = lastWidth;
+    centerY = Math.round(height/2);
+    centerX = Math.round(width/2);
+    console.tron.log(orientation);
+    console.tron.log(JSON.stringify({ width, height, centerX, centerY }));
   }
 
   setCompassAnnotation(headingData) {
@@ -251,10 +269,37 @@ class SonderView extends Component {
           onTap={this.onTap}
         />
         <Svg
-          style={styles.overla}y
-          height="20"
-          width="20"
+          style={styles.overlay}
+          height={height}
+          width={width}
         >
+          <Circle
+              cx={centerX}
+              cy={centerY}
+              r="150"
+              stroke="white"
+              strokeWidth="2"
+              strokeOpacity="0.5"
+              fillOpacity="0"
+          />
+          <Line
+            x1={centerX}
+            x2={centerX}
+            y1="0"
+            y2={height}
+            stroke="white"
+            strokeWidth="1"
+            strokeOpacity="0.5"
+          />
+          <Line
+            y1={centerY}
+            y2={centerY}
+            x1="0"
+            x2={width}
+            stroke="white"
+            strokeWidth="1"
+            strokeOpacity="0.5"
+          />
         </Svg>
         <Text>{this.state.headingIsSupported ?
                 getPrettyBearing(this.state.heading)
