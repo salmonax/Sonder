@@ -27,6 +27,7 @@ import vis from 'code42day-vis-why';
 import nextFrame from 'next-frame';
 
 import HoodSmith from './HoodSelector';
+import Tree from 'rtree';
 
 const offset = new Offset();
 
@@ -58,6 +59,11 @@ class Compass {
     this._currentPosition = null;
     this._heading = null;
     this._debugStreets = this.getDebugStreets();
+
+    /* DEBUG STREET TEST */
+    this._streetsTree = new Tree();
+    this._streetsTree.geoJSON(this._debugStreets);
+
     this._debugHoods = this.getDebugHoods();
     // Delegate hood changes to HoodSmith
     HoodSmith.onHoodChange((hoodData) => {
@@ -71,6 +77,11 @@ class Compass {
       } else {
         this._hoodData = { currentHood, adjacentHoods }
       }
+      // Create a hoods RTree for faster collisions lookup;
+      // NOTE: this should be the HoodSmith's responsibility! TESTING ONLY!
+      this._hoodsTree = new Tree()
+      this._hoodsTree.geoJSON(adjacentHoods);
+
       this._onHoodChange(hoodData);
     });
   }
@@ -124,6 +135,8 @@ class Compass {
       .then(hoodData => {
         console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
         this._hoodData = hoodData;
+        this._hoodsTree = new Tree()
+        this._hoodsTree.geoJSON(hoodData.adjacentHoods);
         this._onInitialHoods(hoodData);
       });
 
@@ -153,9 +166,9 @@ class Compass {
       // Note: just as here, it might be best to eventually forward both position and heading to all Compass
       //lifecycle functions
       this._onHeadingChange({ heading, compassLine, position: this._currentPosition });
-      if (this._detectionPending) {
-        console.tron.log("EMITTER SEES PENDING")
-      }
+      // if (this._detectionPending) {
+      //   console.tron.log("EMITTER SEES PENDING")
+      // }
       if (!compassLine || !this._hoodData || this._detectionPending) return;
 
       // MEASURE 1: angle/timing kludge for feature detection
@@ -204,9 +217,9 @@ class Compass {
     // }
     // END
     await nextFrame(); this.__frameCounter++;
-    const hoods = await this.getHoodCollisions();
+    const hoods = await this.getHoodCollisionsFaster();
     await nextFrame(); this.__frameCounter++;
-    const streets = await this.getStreetCollisions();
+    const streets = await this.getStreetCollisionsFaster();
     return { hoods, streets };
   }
 
@@ -214,12 +227,55 @@ class Compass {
     return lineString(toTuples(this._compassLine));
   }
 
+  async getHoodCollisionsFaster(compassLineFeature = this._getCompassLineFeature(),
+                    adjacentHoods = this._hoodData.adjacentHoods,
+                    currentHood = this._hoodData.currentHood,
+                    hoodsTree = this._hoodsTree) {
+    var adjacents = [];
+    var startHeading = this._heading;
+
+    var lineBox = turf.bbox(compassLineFeature);
+    lineBox = [lineBox.slice(0,2), lineBox.slice(2)];
+
+    var candidateHoods = hoodsTree.bbox(lineBox);
+
+    console.tron.log('ADJACENTS: '+candidateHoods.length);
+    
+    for (let feature of candidateHoods) {
+      await nextFrame(); this.__frameCounter++;
+      const collisions = intersect(compassLineFeature, feature);
+      if (!collisions ||
+        currentHood.properties.label === feature.properties.label) continue;
+      const type = collisions.geometry.type;
+      const coords = collisions.geometry.coordinates;
+      const nearestCoord = (type === 'MultiLineString') ? coords[0][0] : coords[0];
+      const nearestFeature = point(nearestCoord);
+      const originFeature = point(compassLineFeature.geometry.coordinates[0]);
+      const collisionDistance = turf.distance(originFeature, nearestFeature, 'miles');
+      adjacents.push({
+        name: feature.properties.label,
+        distance: collisionDistance.toFixed(2) + ' miles',
+        // coordinates: feature.geometry.coordinates,
+        // feature,
+      });
+    }
+    const current = {
+      name: currentHood.properties.label,
+      coordinates: currentHood.geometry.coordinates,
+      feature: currentHood,
+    }
+    return {adjacents, current };
+  }
+
+
   // Probably just wrap this in a requestAnimationFrame for now
   async getHoodCollisions(compassLineFeature = this._getCompassLineFeature(),
                     adjacentHoods = this._hoodData.adjacentHoods,
                     currentHood = this._hoodData.currentHood) {
     var adjacents = [];
     var startHeading = this._heading;
+    console.tron.log('ADJACENTS: '+adjacentHoods.length);
+
     for (let feature of adjacentHoods) {
       await nextFrame(); this.__frameCounter++;
       const collisions = intersect(compassLineFeature, feature);
@@ -245,6 +301,50 @@ class Compass {
     }
     return {adjacents, current };
   }
+
+
+  async getStreetCollisionsFaster(compassLineFeature = this._getCompassLineFeature(),
+                      streetsFixture = this._debugStreets, 
+                      streetsTree =  this._streetsTree ) {
+    // return ['Streets Stubbed'];
+    var streetsAhead = [];
+    const startHeading = this._heading;
+    var startTime, endTime, timeDiff;
+    var topStartTime = Date.now();
+
+    var lineBox = turf.bbox(compassLineFeature);
+    lineBox = [lineBox.slice(0,2), lineBox.slice(2)];
+
+    var candidateStreets = streetsTree.bbox(lineBox);
+    console.tron.log('CANDIDATES: '+candidateStreets.length);
+  
+    for (let feature of candidateStreets) {
+      await nextFrame; this.__frameCounter++;
+      const collision = intersect(compassLineFeature, feature);
+      // console.tron.log("-STREETS- intersect: "+(Date.now()-topStartTime).toString()+'ms');
+      if (!collision) continue;
+      const originFeature = point(compassLineFeature.geometry.coordinates[0]);
+      const collisionDistance = turf.distance(originFeature,collision);
+      const street = {
+        name: feature.properties.name,
+        distance: collisionDistance.toFixed(2) + 'miles'
+      };
+      const relations = feature.properties['@relations'];
+      if (relations) {
+        let routes = {};
+        for (let relation of relations) {
+          await nextFrame(); this.__frameCounter++;
+          if (relation.reltags.type === "route") {
+            routes[relation.reltags.ref] = true;
+          }
+        };
+        if (routes) street.routes = Object.keys(routes);
+      }
+      streetsAhead.push(street);
+    }
+    return streetsAhead;
+  }
+
 
   async getStreetCollisions(compassLineFeature = this._getCompassLineFeature(),
                       streetsFixture = this._debugStreets ) {
@@ -302,7 +402,7 @@ class Compass {
     const streetLatLngs = this.mapifyStreets(streets);
     await nextFrame(); this.__frameCounter++;
     console.tron.log('mapifyStreets: ' + (Date.now()-startTime).toString()+'ms frames: ' + this.__frameCounter.toString())
-    const hoodData = { currentHood, adjacentHoods, hoodLatLngs, streetLatLngs };
+    const hoodData = { currentHood, adjacentHoods, hoodLatLngs, streetLatLngs, streets };
     return hoodData;
   }
 

@@ -127,6 +127,21 @@ export const calculateRegionCenter = (coordinates) => {
       })
     }
 */
+
+// Converts an OSM street LineString to a single polyline annotation
+export const streetToAnnotation = (feature, annotationSettings) => {
+  const coords = feature.geometry.coordinates;
+  const id = feature.properties['@id'];
+  return Object.assign(
+    { coordinates: reverseTuples(coords),
+      type: 'polyline',
+      id
+    },
+    annotationSettings,
+  );
+}
+
+// Converts a Zetashapes/Flickr neighborhood to one or more polygon annotations
 export const hoodToAnnotations = (feature, annotationSettings) => {
   const type = feature.geometry.type;
   if (type === 'MultiPolygon') {

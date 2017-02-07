@@ -15,6 +15,7 @@ import {
 import Styles from './Styles/MapViewStyle';
 import Compass from '../Lib/Compass';
 import { 
+  streetToAnnotation,
   hoodToAnnotations, 
   reverseTuples, 
   getPrettyBearing, 
@@ -79,7 +80,7 @@ class SonderView extends Component {
       onInitialPosition: (initialPosition) => {
         this.setState({ initialPosition })
       },
-      onInitialHoods: ({ currentHood, adjacentHoods, hoodLatLngs, streetLatLngs}) => {
+      onInitialHoods: ({ currentHood, adjacentHoods, hoodLatLngs, streetLatLngs, streets }) => {
         this.setState({ 
           currentHood, 
           adjacentHoods, 
@@ -87,6 +88,7 @@ class SonderView extends Component {
           streets: streetLatLngs
         });
         this.setHoodAnnotations(currentHood, adjacentHoods);
+        this.setStreetAnnotations(streets); // WARNING: debug only; renders twice!
       },
       onHeadingSupported: (headingIsSupported) => 
         this.setState({ headingIsSupported }),
@@ -131,6 +133,24 @@ class SonderView extends Component {
     Compass.stop();
   }
 
+  setStreetAnnotations(streets) {
+    const streetAnnotations = [];
+    for (let street of streets) {
+      const annotation = streetToAnnotation(street, {
+        class: 'street',
+        strokeWidth: 1,
+        strokeColor: "#FF0000"
+      });
+      streetAnnotations.push(annotation);
+    }
+    this.setState({
+      annotations: [
+        ...this.state.annotations.filter(annotation => annotation.class !== 'street'),
+        ...streetAnnotations
+      ]
+    });
+  }
+
   setHoodAnnotations(currentHood, adjacentHoods) {
     // Draw the hood annotation, with random color, then with BinduRGB
     const currentHoodAnnotations = hoodToAnnotations(currentHood, {
@@ -161,9 +181,9 @@ class SonderView extends Component {
 
     this.setState({
       annotations: [
-        ...this.state.annotations.filter(annotation => annotation.class !== 'hood'), 
         ...currentHoodAnnotations,
         ...adjacentHoodAnnotations,
+        ...this.state.annotations.filter(annotation => annotation.class !== 'hood'),
       ]
     }) 
     // Draw the adjacenthood annotations, with random color, then with BinduRGB
@@ -304,9 +324,13 @@ class SonderView extends Component {
         <Text>{this.state.headingIsSupported ?
                 getPrettyBearing(this.state.heading)
                 : "Heading unsupported." }</Text>
+        <Text>{this.state.entities ? 
+                JSON.stringify(this.state.entities.streets) :
+                "Normalizing reticulating splines..."}</Text>
         {this.state.entities ? <Text style={dynamicStyles.currentHood}>{this.state.entities ? 
               this.state.entities.hoods.current.name : ''}</Text> : null }
         {this.state.entities ? <Text style={dynamicStyles.adjacentHood}>{nearestAdjacentHoodLabel}</Text> : null }
+        {this.state.entities ? <Text>{JSON.stringify(Compass._getCompassLineFeature())}</Text> : null }
 
             {/*<Text>{this.state.entities ? 
               JSON.stringify(this.state.entities.hoods) : 

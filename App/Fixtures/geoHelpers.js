@@ -112,7 +112,7 @@ exports.makeIndexedCollectionFast = (hoodCollection, opts) => {
   for (let centerIndex = 0; centerIndex < hoodTotal; centerIndex++) {
     const centerHood = hoods[centerIndex];
     let centerBBox = growBBox( turf.bbox(centerHood) ); // avoid false negs
-    centerBBox= [centerBBox.slice(0,2), centerBBox.slice(2)];
+    centerBBox = [centerBBox.slice(0,2), centerBBox.slice(2)]; // convert bbox into tuples
     let candidates = tree.bbox(centerBBox);
     // candidates = Array.from(new Set(candidates).values()); // kill duplicates
     for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex++) {
