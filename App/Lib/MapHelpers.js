@@ -1,7 +1,7 @@
 // @flow
 
 import R from 'ramda'
-import { centroid } from '@turf/turf';
+import { centroid, bboxPolygon } from '@turf/turf';
 
 export const removeEmpty = (markers: Array<Object>) => {
   let filteredMarkers = R.filter((item) => {
@@ -128,6 +128,28 @@ export const calculateRegionCenter = (coordinates) => {
     }
 */
 
+// For debugging purposes, converts an array of tuple-ized BBoxes into polyLine annotations
+export const boundsToAnnotations = (boundsSets) => {
+  const annotations = [];
+  boundsSets.forEach((bounds, index) => {
+    // console.tron.log('BOUNDS: '+JSON.stringify(bounds));
+    let bbox = bounds.reduce((result,tuple) => result.concat(tuple),[]);
+    // console.tron.log('BBOX: '+JSON.stringify(bbox));
+    let feature = bboxPolygon(bbox);
+    let coords = feature.geometry.coordinates;
+    annotations.push({
+      coordinates: reverseTuples(coords[0]),
+      type: 'polyline',
+      class: 'compassBounds',
+      id: 'compassBounds-'+index,
+      strokeWidth: 2,
+      strokeColor: "#0000FF"
+    });
+  });
+  return annotations;
+}
+
+
 // Converts an OSM street LineString to a single polyline annotation
 export const streetToAnnotation = (feature, annotationSettings) => {
   const coords = feature.geometry.coordinates;
@@ -175,4 +197,35 @@ export const binduMapBox = (text) => {
     b: parseInt(seededRandom(++seed)*100+100)
   };
   return '#'+color.r.toString(16)+color.g.toString(16)+color.b.toString(16);
+};
+
+// This takes a bounds array and splits it n number of times
+// It returns an array of bounds arrays
+
+export const splitBBox = (bbox) => {
+  var deltaX = Math.abs(bbox[1][0]-bbox[0][0]);
+  var deltaY = Math.abs(bbox[1][1]-bbox[0][1]);
+  var leftX = bbox[0][0];
+  var rightX = bbox[1][0];
+  var topY = bbox[0][1];
+  var bottomY = bbox[1][1];
+  var midX = bbox[0][0] + Math.round(deltaX*1000/2)/1000;
+  var midY = bbox[0][1] + Math.round(deltaY*1000/2)/1000;
+
+  var topLeft = bbox[0];
+  var topMid = [ midX, topY ]
+  var topRight = [ rightX, topY ];
+  var midLeft = [ leftX , midY ];
+  var midMid = [ midX, midY ];
+  var midRight = [ rightX, midY ];
+  var bottomLeft = [ leftX, bottomY ];
+  var bottomMid = [ midX, bottomY ];
+  var bottomRight = bbox[1];
+
+  return [
+    [topLeft, midMid],
+    [topMid, midRight],
+    [midLeft, bottomMid],
+    [midMid, bottomRight]
+  ];
 };

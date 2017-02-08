@@ -16,7 +16,8 @@ import Styles from './Styles/MapViewStyle';
 import Compass from '../Lib/Compass';
 import { 
   streetToAnnotation,
-  hoodToAnnotations, 
+  hoodToAnnotations,
+  boundsToAnnotations,
   reverseTuples, 
   getPrettyBearing, 
   toTuples,
@@ -76,7 +77,7 @@ class SonderView extends Component {
   componentWillMount() {
     Compass.start({
       minAngle: 1,
-      radius: 10,
+      radius: 0.015,
       onInitialPosition: (initialPosition) => {
         this.setState({ initialPosition })
       },
@@ -88,7 +89,7 @@ class SonderView extends Component {
           streets: streetLatLngs
         });
         this.setHoodAnnotations(currentHood, adjacentHoods);
-        this.setStreetAnnotations(streets); // WARNING: debug only; renders twice!
+        // this.setStreetAnnotations(streets); // WARNING: debug only; renders twice!
       },
       onHeadingSupported: (headingIsSupported) => 
         this.setState({ headingIsSupported }),
@@ -119,6 +120,7 @@ class SonderView extends Component {
           this._map.setDirection(headingData.heading);
         }
         // this.setCompassAnnotation(headingData);
+        this._setCompassBoundsAnnotations();
       },
       onEntitiesDetected: (entities) => 
         this.setState({ entities })
@@ -147,6 +149,17 @@ class SonderView extends Component {
       annotations: [
         ...this.state.annotations.filter(annotation => annotation.class !== 'street'),
         ...streetAnnotations
+      ]
+    });
+  }
+
+  _setCompassBoundsAnnotations() {
+    // NOTE: quick and dirty; __getCompassLineBounds() exists just so I could do this quick
+    const boundsAnnotations = boundsToAnnotations(Compass.__getCompassLineBounds());
+    this.setState({
+      annotations: [
+        ...this.state.annotations.filter(annotation => annotation.class !== 'compassBounds'),
+        ...boundsAnnotations
       ]
     });
   }
@@ -324,13 +337,18 @@ class SonderView extends Component {
         <Text>{this.state.headingIsSupported ?
                 getPrettyBearing(this.state.heading)
                 : "Heading unsupported." }</Text>
-        <Text>{this.state.entities ? 
-                JSON.stringify(this.state.entities.streets) :
-                "Normalizing reticulating splines..."}</Text>
+
         {this.state.entities ? <Text style={dynamicStyles.currentHood}>{this.state.entities ? 
               this.state.entities.hoods.current.name : ''}</Text> : null }
         {this.state.entities ? <Text style={dynamicStyles.adjacentHood}>{nearestAdjacentHoodLabel}</Text> : null }
+
+
+        {/*
+        <Text>{this.state.entities ? 
+                JSON.stringify(this.state.entities.streets) :
+                "Normalizing reticulating splines..."}</Text>
         {this.state.entities ? <Text>{JSON.stringify(Compass._getCompassLineFeature())}</Text> : null }
+
 
             {/*<Text>{this.state.entities ? 
               JSON.stringify(this.state.entities.hoods) : 

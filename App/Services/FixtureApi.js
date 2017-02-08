@@ -11,10 +11,12 @@ export default {
   },
   // The actual API for this one will probably be different
   getStreets: (neighborhood: string) => {
-    const tenderloinStreets = require('../Fixtures/tenderloinStreets.json')
+    // const tenderloinStreets = require('../Fixtures/tenderloinStreets.json')
+    const tenderloinStreets = require('../Fixtures/allStreets.json')
     return {
       ok: true,
-      data: tenderloinStreets
+      data: tenderloinStreets.features
+      // data: tenderloinStreets
     }
   },
   getCity: (city: string) => {

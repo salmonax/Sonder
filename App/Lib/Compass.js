@@ -15,7 +15,7 @@ import ReactNativeHeading from 'react-native-heading';
 // Note: ignoring redux-saga structure for now, so this eventually shouldn't go in here!
 import FixtureApi from '../Services/FixtureApi';
 
-import { getRegionBBox, toCoords, toTuples, toTuple } from '../Lib/MapHelpers';
+import { getRegionBBox, toCoords, toTuples, toTuple, splitBBox } from '../Lib/MapHelpers';
 import { lineString, point, polygon } from '@turf/helpers';
 import intersect from '@turf/intersect';
 import inside from '@turf/inside';
@@ -227,6 +227,19 @@ class Compass {
     return lineString(toTuples(this._compassLine));
   }
 
+  // Another dumb debug function for visualizing compass bounds
+  // This will eventually be more than a debug function and do all the work of
+  //  selecting a subset of split bboxes to use with rtree street lookups
+  // Probably breaks some conventions, *shrug*
+  __getCompassLineBounds() {
+    var lineBox = turf.bbox(this._getCompassLineFeature());
+    lineBox = [lineBox.slice(0,2), lineBox.slice(2)];
+    // compassLineBounds is meant to be a bunch of bounding boxes, just doing this for now
+    var splitBox = splitBBox(lineBox);
+    // This is what goes in our recursive function, by the way:
+    return splitBox.reduce((result, bounds) => result.concat(splitBBox(bounds)),[]);
+  }
+
   async getHoodCollisionsFaster(compassLineFeature = this._getCompassLineFeature(),
                     adjacentHoods = this._hoodData.adjacentHoods,
                     currentHood = this._hoodData.currentHood,
@@ -306,7 +319,7 @@ class Compass {
   async getStreetCollisionsFaster(compassLineFeature = this._getCompassLineFeature(),
                       streetsFixture = this._debugStreets, 
                       streetsTree =  this._streetsTree ) {
-    // return ['Streets Stubbed'];
+    return ['Streets Stubbed'];
     var streetsAhead = [];
     const startHeading = this._heading;
     var startTime, endTime, timeDiff;
@@ -314,6 +327,9 @@ class Compass {
 
     var lineBox = turf.bbox(compassLineFeature);
     lineBox = [lineBox.slice(0,2), lineBox.slice(2)];
+
+    // area = Math.abs(lineBox[0][0]-lineBox[1][0])*Math.abs(lineBox[0][1]-lineBox[1][1]);
+    // console.tron.log('COMPASS: '+area);
 
     var candidateStreets = streetsTree.bbox(lineBox);
     console.tron.log('CANDIDATES: '+candidateStreets.length);
