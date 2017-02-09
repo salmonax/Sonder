@@ -49,10 +49,10 @@ class SonderView extends Component {
 
   onRegionDidChange = (location) => {
     this.setState({ currentZoom: location.zoomLevel });
-    console.log('onRegionDidChange', location);
+    // console.log('onRegionDidChange', location);
   };
   onRegionWillChange = (location) => {
-    console.log('onRegionWillChange', location);
+    // console.log('onRegionWillChange', location);
   };
   onUpdateUserLocation = (location) => {
     console.log('onUpdateUserLocation', location);
@@ -77,7 +77,7 @@ class SonderView extends Component {
   componentWillMount() {
     Compass.start({
       minAngle: 1,
-      radius: 0.015,
+      radius: 0.01,
       onInitialPosition: (initialPosition) => {
         this.setState({ initialPosition })
       },
@@ -341,13 +341,17 @@ class SonderView extends Component {
         {this.state.entities ? <Text style={dynamicStyles.currentHood}>{this.state.entities ? 
               this.state.entities.hoods.current.name : ''}</Text> : null }
         {this.state.entities ? <Text style={dynamicStyles.adjacentHood}>{nearestAdjacentHoodLabel}</Text> : null }
+        {this.state.entities ? <Text>{JSON.stringify(Compass._getCompassLineFeature())}</Text> : null }
+        <Text>{this.state.entities ? 
+                JSON.stringify(this.state.entities.streets) :
+                "Normalizing reticulating splines..."}</Text>
 
 
         {/*
         <Text>{this.state.entities ? 
                 JSON.stringify(this.state.entities.streets) :
                 "Normalizing reticulating splines..."}</Text>
-        {this.state.entities ? <Text>{JSON.stringify(Compass._getCompassLineFeature())}</Text> : null }
+        
 
 
             {/*<Text>{this.state.entities ? 
@@ -356,9 +360,6 @@ class SonderView extends Component {
             <Text>{this.state.headingIsSupported ?
                     getPrettyBearing(this.state.heading)
                     : "Heading unsupported." }</Text>
-            <Text>{this.state.entities ? 
-                    JSON.stringify(this.state.entities.streets) :
-                    "Normalizing reticulating splines..."}</Text>
             <Text>{this.state.annotations ? 
                     JSON.stringify( this.state.annotations ) :
                     null

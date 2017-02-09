@@ -209,8 +209,8 @@ export const splitBBox = (bbox) => {
   var rightX = bbox[1][0];
   var topY = bbox[0][1];
   var bottomY = bbox[1][1];
-  var midX = bbox[0][0] + Math.round(deltaX*1000/2)/1000;
-  var midY = bbox[0][1] + Math.round(deltaY*1000/2)/1000;
+  var midX = bbox[0][0] + deltaX/2;
+  var midY = bbox[0][1] + deltaY/2;
 
   var topLeft = bbox[0];
   var topMid = [ midX, topY ]

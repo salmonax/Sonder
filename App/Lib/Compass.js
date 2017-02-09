@@ -127,7 +127,9 @@ class Compass {
           this._currentPosition = position.coords;
           HoodSmith.refresh(this._currentPosition);
         }
+        console.log("1. GOT INITIAL POSITION");
         this._onInitialPosition(position); // probably should pass position.coords
+        console.log("1.5 RAN ONINITIALPOSITION");
         this.__frameCounter = 0;
         startTime = Date.now();
         return this._processNeighborhoods(position);
@@ -143,7 +145,10 @@ class Compass {
     this.watchID = navigator.geolocation.watchPosition(position => {
       this._currentPosition = position.coords;
       HoodSmith.refresh(this._currentPosition);
+      console.log("2. GOT POSITION CHANGE");
       this._onPositionChange(position); // probably should pass position.coords
+      console.log("2.5. RAN ONPOSITIONCHANGE");
+
       // ToDo: this allows heading-stationary entity updates, but there's something in the logic that causes it to lag, crash, and suck; fix
       // Idea: maybe tag-team with headingUpdated, such that it is never called once for subsequent events?
       // const compassLine = this._compassLine = this.getCompassLine(); // also carried over from headingChange
@@ -234,10 +239,18 @@ class Compass {
   __getCompassLineBounds() {
     var lineBox = turf.bbox(this._getCompassLineFeature());
     lineBox = [lineBox.slice(0,2), lineBox.slice(2)];
-    // compassLineBounds is meant to be a bunch of bounding boxes, just doing this for now
+
+    const heading = this._heading;
+    // calculate quadrants from 0 to 3 from angle
+    var quadrant = Math.floor((heading%360)/90);
     var splitBox = splitBBox(lineBox);
     // This is what goes in our recursive function, by the way:
-    return splitBox.reduce((result, bounds) => result.concat(splitBBox(bounds)),[]);
+    splitBox = splitBox.reduce((result, bounds) => result.concat(splitBBox(bounds)),[]);
+
+    // select the correct diagonal based on the quadrant... just kludging it out for now
+    const diagonal = [[0,3,12,15], [5,6,9,10]][quadrant%2];
+    if (quadrant === 1 || quadrant === 2) diagonal.reverse();
+    return diagonal.map(index => splitBox[index]);
   }
 
   async getHoodCollisionsFaster(compassLineFeature = this._getCompassLineFeature(),
@@ -315,11 +328,10 @@ class Compass {
     return {adjacents, current };
   }
 
-
   async getStreetCollisionsFaster(compassLineFeature = this._getCompassLineFeature(),
                       streetsFixture = this._debugStreets, 
                       streetsTree =  this._streetsTree ) {
-    return ['Streets Stubbed'];
+    // return ['Streets Stubbed'];
     var streetsAhead = [];
     const startHeading = this._heading;
     var startTime, endTime, timeDiff;
@@ -333,13 +345,22 @@ class Compass {
 
     var candidateStreets = streetsTree.bbox(lineBox);
     console.tron.log('CANDIDATES: '+candidateStreets.length);
-  
+
+    const originFeature = point(compassLineFeature.geometry.coordinates[0]);
     for (let feature of candidateStreets) {
-      await nextFrame; this.__frameCounter++;
-      const collision = intersect(compassLineFeature, feature);
+      // await nextFrame; this.__frameCounter++;
+      let collision = intersect(compassLineFeature, feature);
       // console.tron.log("-STREETS- intersect: "+(Date.now()-topStartTime).toString()+'ms');
       if (!collision) continue;
-      const originFeature = point(compassLineFeature.geometry.coordinates[0]);
+      //  NOTE: adding try-catches to all these asyncs might be a GOOD IDEA
+      // This fixes MultiLine collisions to work with turf.distance:
+      if (collision.geometry.type === 'MultiPoint') {
+        Object.assign(collision.geometry, {
+          type: 'Point',
+          coordinates: collision.geometry.coordinates[0]
+        }); 
+      }
+      console.log('HERE: '+JSON.stringify(collision));
       const collisionDistance = turf.distance(originFeature,collision);
       const street = {
         name: feature.properties.name,
@@ -349,7 +370,61 @@ class Compass {
       if (relations) {
         let routes = {};
         for (let relation of relations) {
-          await nextFrame(); this.__frameCounter++;
+          // await nextFrame(); this.__frameCounter++;
+          if (relation.reltags.type === "route") {
+            routes[relation.reltags.ref] = true;
+          }
+        };
+        if (routes) street.routes = Object.keys(routes);
+      }
+      streetsAhead.push(street);
+    }
+    return streetsAhead;
+  }
+
+  async getStreetCollisionsFaster(compassLineFeature = this._getCompassLineFeature(),
+                      streetsFixture = this._debugStreets, 
+                      streetsTree =  this._streetsTree ) {
+    // return ['Streets Stubbed'];
+    var streetsAhead = [];
+    const startHeading = this._heading;
+    var startTime, endTime, timeDiff;
+    var topStartTime = Date.now();
+
+    var lineBox = turf.bbox(compassLineFeature);
+    lineBox = [lineBox.slice(0,2), lineBox.slice(2)];
+
+    // area = Math.abs(lineBox[0][0]-lineBox[1][0])*Math.abs(lineBox[0][1]-lineBox[1][1]);
+    // console.tron.log('COMPASS: '+area);
+
+    var candidateStreets = streetsTree.bbox(lineBox);
+    console.tron.log('CANDIDATES: '+candidateStreets.length);
+
+    const originFeature = point(compassLineFeature.geometry.coordinates[0]);
+    for (let feature of candidateStreets) {
+      // await nextFrame; this.__frameCounter++;
+      let collision = intersect(compassLineFeature, feature);
+      // console.tron.log("-STREETS- intersect: "+(Date.now()-topStartTime).toString()+'ms');
+      if (!collision) continue;
+      //  NOTE: adding try-catches to all these asyncs might be a GOOD IDEA
+      // This fixes MultiLine collisions to work with turf.distance:
+      if (collision.geometry.type === 'MultiPoint') {
+        Object.assign(collision.geometry, {
+          type: 'Point',
+          coordinates: collision.geometry.coordinates[0]
+        }); 
+      }
+      console.log('HERE: '+JSON.stringify(collision));
+      const collisionDistance = turf.distance(originFeature,collision);
+      const street = {
+        name: feature.properties.name,
+        distance: collisionDistance.toFixed(2) + 'miles'
+      };
+      const relations = feature.properties['@relations'];
+      if (relations) {
+        let routes = {};
+        for (let relation of relations) {
+          // await nextFrame(); this.__frameCounter++;
           if (relation.reltags.type === "route") {
             routes[relation.reltags.ref] = true;
           }
