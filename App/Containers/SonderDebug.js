@@ -77,7 +77,7 @@ class SonderView extends Component {
   componentWillMount() {
     Compass.start({
       minAngle: 1,
-      radius: 0.01,
+      radius: 0.013,
       onInitialPosition: (initialPosition) => {
         this.setState({ initialPosition })
       },
@@ -120,7 +120,7 @@ class SonderView extends Component {
           this._map.setDirection(headingData.heading);
         }
         // this.setCompassAnnotation(headingData);
-        this._setCompassBoundsAnnotations();
+        // this._setCompassBoundsAnnotations();
       },
       onEntitiesDetected: (entities) => 
         this.setState({ entities })
@@ -216,7 +216,12 @@ class SonderView extends Component {
 
   setCompassAnnotation(headingData) {
     let compassTuple = toTuples(headingData.compassLine);
-    compassTuple = [compassTuple[0].reverse(), compassTuple[1].reverse()]
+    let lastCollisionPoint = Compass.__lastCollisionPoint;
+    let endPoint = lastCollisionPoint ? 
+     [lastCollisionPoint[1],lastCollisionPoint[0]] :
+     compassTuple[1].reverse();
+
+    compassTuple = [compassTuple[0].reverse(), endPoint]
     if (!this.state.annotations.length) {
       this.setState({
         heading: headingData.heading,

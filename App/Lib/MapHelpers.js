@@ -229,3 +229,72 @@ export const splitBBox = (bbox) => {
     [midMid, bottomRight]
   ];
 };
+
+const lineIntersect = (lng1, lat1, lng2, lat2, lng3, lat3, lng4, lat4) => {
+    var ua, ub, denom = (lat4 - lat3)*(lng2 - lng1) - (lng4 - lng3)*(lat2 - lat1);
+    if (denom === 0) return null;
+    ua = ((lng4 - lng3)*(lat1 - lat3) - (lat4 - lat3)*(lng1 - lng3))/denom;
+    ub = ((lng2 - lng1)*(lat1 - lat3) - (lat2 - lat1)*(lng1 - lng3))/denom;
+    return (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) ?
+        [ lng1 + ua*(lng2 - lng1), lat1 + ua*(lat2 - lat1) ] : 
+        false;
+}
+
+
+// const getDistance = (lng1, lat1, lng2, lat2) => {
+//     const { acos, sin, cos } = Math;
+//     return acos(sin(lat1)*sin(lat2)+cos(lat1)*cos(lat2)*cos(lng2-lng1))*3959;
+// }
+
+function getDistance(lng1, lat1, lng2, lat2) {
+  var radlat1 = Math.PI * lat1/180;
+  var radlat2 = Math.PI * lat2/180;
+  var theta = lng1-lng2;
+  var radtheta = Math.PI * theta/180;
+  var dist = Math.sin(radlat1) * Math.sin(radlat2) + Math.cos(radlat1) * Math.cos(radlat2) * Math.cos(radtheta);
+  dist = Math.acos(dist);
+  dist = dist * 180/Math.PI;
+  dist = dist * 60 * 1.1515;
+  return dist;
+}
+
+// takes an array of lngLats, returns collision and distance
+export const polyIntersect = (line, polyline) => {
+    var result = false;
+    var nearest;
+    for (let i = 1; i < polyline.length; i++) {
+        let flatPolyline = [...polyline[i-1],...polyline[i]];
+        let collision = lineIntersect(...[].concat(...line), ...flatPolyline);
+        if (collision) {
+            let distance = getDistance(...line[0],...collision);
+            if (nearest === undefined || distance < nearest) {
+                nearest = distance;
+                result = { collision, distance };
+            }
+        }
+    }
+    return result;
+};
+
+// accepts coordinates at normal mulitPoly levels and runs polyIntersect
+// returns the nearest of each
+export const multiPolyIntersect = (line, multiPoly) => {
+  var result = false;
+  var nearest;
+  // Grabs only the outer shape of each poly
+  mulitPoly = multiPoly.map(coords => coords[0]);
+  for (poly of multiPoly) {
+    let candidate = polyIntersect(line,poly);
+    if (candidate) {
+      let distance = candidate.distance
+      if (nearest === undefined || distance < nearest) {
+        nearest = distance;
+        result = candidate;
+      }
+    }
+  }
+  return result;
+}
+
+// Similar to growBBox from Geohelpers, but takes tuples as input/output
+export const growBounds = (bounds, d = 0.0005) => [[bounds[0][0]-d,bounds[0][1]-d],[bounds[1][0]+d,bounds[1][1]+d]];

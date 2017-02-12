@@ -15,7 +15,7 @@ import ReactNativeHeading from 'react-native-heading';
 // Note: ignoring redux-saga structure for now, so this eventually shouldn't go in here!
 import FixtureApi from '../Services/FixtureApi';
 
-import { getRegionBBox, toCoords, toTuples, toTuple, splitBBox } from '../Lib/MapHelpers';
+import { getRegionBBox, toCoords, toTuples, toTuple, splitBBox, polyIntersect, multiPolyIntersect } from '../Lib/MapHelpers';
 import { lineString, point, polygon } from '@turf/helpers';
 import intersect from '@turf/intersect';
 import inside from '@turf/inside';
@@ -28,6 +28,8 @@ import nextFrame from 'next-frame';
 
 import HoodSmith from './HoodSelector';
 import Tree from 'rtree';
+
+import { growBounds } from './MapHelpers';
 
 const offset = new Offset();
 
@@ -221,10 +223,31 @@ class Compass {
     //   return this._entities;
     // }
     // END
+    console.tron.log('---');
     await nextFrame(); this.__frameCounter++;
-    const hoods = await this.getHoodCollisionsFaster();
+    const hoods = await this.getHoodCollisionsFastest();
     await nextFrame(); this.__frameCounter++;
-    const streets = await this.getStreetCollisionsFaster();
+    const streets = await this.getStreetCollisionsFastest();
+    // await nextFrame(); this.__frameCounter++;
+    // const otherStreets = await this.getStreetCollisionsFaster();
+    // if (streets.length !== otherStreets.length) {
+    //   let big, small;
+    //   console.tron.log("!!!!!!DIFFERENCE!!!! ");
+    //   if (streets > otherStreets) {
+    //     big = streets;
+    //     small = otherStreets;
+    //   } else {
+    //     big = otherStreets;
+    //     small = streets;
+    //   }
+    //   // console.tron.log('BIG: ' + JSON.stringify(big));
+    //   // console.tron.log('SMALL: ' + JSON.stringify(small));
+    //   let smallNames = small.map(street => street.name);
+    //   let bigNames  = big.map(street => street.name);
+    //   console.tron.log(JSON.stringify(bigNames.filter(name => smallNames.indexOf(name) < 0)));
+    // }
+
+
     return { hoods, streets };
   }
 
@@ -251,6 +274,54 @@ class Compass {
     const diagonal = [[0,3,12,15], [5,6,9,10]][quadrant%2];
     if (quadrant === 1 || quadrant === 2) diagonal.reverse();
     return diagonal.map(index => splitBox[index]);
+    // Grow bounding box to eliminate false negatives
+    // return diagonal.map((index, i) => (i < diagonal.length-1 && i > 0) ? growBounds(splitBox[index]) : splitBox[index] );
+  }
+
+  async getHoodCollisionsFastest(compassLineFeature = this._getCompassLineFeature(),
+                    adjacentHoods = this._hoodData.adjacentHoods,
+                    currentHood = this._hoodData.currentHood,
+                    hoodsTree = this._hoodsTree) {
+    var adjacents = [];
+    var startHeading = this._heading;
+
+    var lineBox = turf.bbox(compassLineFeature);
+    lineBox = [lineBox.slice(0,2), lineBox.slice(2)];
+
+    var candidateHoods = hoodsTree.bbox(lineBox);
+
+    console.tron.log('ADJACENTS: '+candidateHoods.length);
+    
+    let compassCoords = compassLineFeature.geometry.coordinates;
+    for (let feature of candidateHoods) {
+      // await nextFrame(); this.__frameCounter++;
+
+      let featureCoords = feature.geometry.coordinates;
+      let type = feature.geometry.type;
+
+      if (currentHood.properties.label === feature.properties.label) continue;
+      const collision = (type === 'MultiPolygon') ?  
+        multiPolyIntersect(compassCoords, featureCoords) :
+        polyIntersect(compassCoords, featureCoords[0]);
+      // console.tron.log('????'+JSON.stringify(collision));
+      if (!collision) continue;
+      // WARNING: debug only! This is only here to render a line temporarily
+      this.__lastCollisionPoint = collision.collision;
+      const collisionDistance = collision.distance;
+
+      adjacents.push({
+        name: feature.properties.label,
+        distance: collisionDistance.toFixed(2) + ' miles',
+        // coordinates: feature.geometry.coordinates,
+        // feature,
+      });
+    }
+    const current = {
+      name: currentHood.properties.label,
+      coordinates: currentHood.geometry.coordinates,
+      feature: currentHood,
+    }
+    return {adjacents, current };
   }
 
   async getHoodCollisionsFaster(compassLineFeature = this._getCompassLineFeature(),
@@ -265,7 +336,7 @@ class Compass {
 
     var candidateHoods = hoodsTree.bbox(lineBox);
 
-    console.tron.log('ADJACENTS: '+candidateHoods.length);
+    // console.tron.log('ADJACENTS: '+candidateHoods.length);
     
     for (let feature of candidateHoods) {
       await nextFrame(); this.__frameCounter++;
@@ -278,6 +349,7 @@ class Compass {
       const nearestFeature = point(nearestCoord);
       const originFeature = point(compassLineFeature.geometry.coordinates[0]);
       const collisionDistance = turf.distance(originFeature, nearestFeature, 'miles');
+      this.__lastCollisionPoint = nearestCoord;
       adjacents.push({
         name: feature.properties.label,
         distance: collisionDistance.toFixed(2) + ' miles',
@@ -328,40 +400,46 @@ class Compass {
     return {adjacents, current };
   }
 
-  async getStreetCollisionsFaster(compassLineFeature = this._getCompassLineFeature(),
+  async getStreetCollisionsFastest(compassLineFeature = this._getCompassLineFeature(),
                       streetsFixture = this._debugStreets, 
                       streetsTree =  this._streetsTree ) {
     // return ['Streets Stubbed'];
     var streetsAhead = [];
-    const startHeading = this._heading;
     var startTime, endTime, timeDiff;
     var topStartTime = Date.now();
 
-    var lineBox = turf.bbox(compassLineFeature);
-    lineBox = [lineBox.slice(0,2), lineBox.slice(2)];
+    var splitBoxes = this.__getCompassLineBounds();
+    let candidateStreets = [];
+    let streetStore = {};
+    for (let splitBox of splitBoxes) {
+      // let newFoundStreets = [];
+      // streetsTree.bbox(splitBox).forEach(street => {
+      //   if (streetStore[street.properties['@id']]) return;
+      //   streetStore[street.properties['@id']] = true;
+      //   newFoundStreets.push(street);
+      // });
+      // candidateStreets = candidateStreets.concat(newFoundStreets);
+      candidateStreets = candidateStreets.concat(streetsTree.bbox(splitBox));
+    }
 
-    // area = Math.abs(lineBox[0][0]-lineBox[1][0])*Math.abs(lineBox[0][1]-lineBox[1][1]);
-    // console.tron.log('COMPASS: '+area);
-
-    var candidateStreets = streetsTree.bbox(lineBox);
-    console.tron.log('CANDIDATES: '+candidateStreets.length);
+    console.tron.log('STORE: ' + Object.keys(streetStore).length);
+    console.tron.log('CANDIDATES: ' + candidateStreets.length);
 
     const originFeature = point(compassLineFeature.geometry.coordinates[0]);
+
+    let compassCoords = compassLineFeature.geometry.coordinates;
     for (let feature of candidateStreets) {
       // await nextFrame; this.__frameCounter++;
-      let collision = intersect(compassLineFeature, feature);
-      // console.tron.log("-STREETS- intersect: "+(Date.now()-topStartTime).toString()+'ms');
+      // console.tron.log(JSON.stringify(feature.properties.name));
+
+      let featureCoords = feature.geometry.coordinates;
+
+      let collision = polyIntersect(compassCoords, featureCoords);
       if (!collision) continue;
-      //  NOTE: adding try-catches to all these asyncs might be a GOOD IDEA
-      // This fixes MultiLine collisions to work with turf.distance:
-      if (collision.geometry.type === 'MultiPoint') {
-        Object.assign(collision.geometry, {
-          type: 'Point',
-          coordinates: collision.geometry.coordinates[0]
-        }); 
-      }
-      console.log('HERE: '+JSON.stringify(collision));
-      const collisionDistance = turf.distance(originFeature,collision);
+      if (streetStore[feature.properties['@id']]) continue;
+      streetStore[feature.properties['@id']] = true;
+      const collisionDistance = collision.distance;
+
       const street = {
         name: feature.properties.name,
         distance: collisionDistance.toFixed(2) + 'miles'
@@ -379,6 +457,77 @@ class Compass {
       }
       streetsAhead.push(street);
     }
+    console.tron.log("FASTERER: "+ streetsAhead.length);
+    return streetsAhead;
+  }
+
+  async getStreetCollisionsFasterer(compassLineFeature = this._getCompassLineFeature(),
+                      streetsFixture = this._debugStreets, 
+                      streetsTree =  this._streetsTree ) {
+    // return ['Streets Stubbed'];
+    var streetsAhead = [];
+    var startTime, endTime, timeDiff;
+    var topStartTime = Date.now();
+
+    var splitBoxes = this.__getCompassLineBounds();
+    let candidateStreets = [];
+    let streetStore = {};
+    for (let splitBox of splitBoxes) {
+      // let newFoundStreets = [];
+      // streetsTree.bbox(splitBox).forEach(street => {
+      //   if (streetStore[street.properties['@id']]) return;
+      //   streetStore[street.properties['@id']] = true;
+      //   newFoundStreets.push(street);
+      // });
+      // candidateStreets = candidateStreets.concat(newFoundStreets);
+      candidateStreets = candidateStreets.concat(streetsTree.bbox(splitBox));
+    }
+
+    console.tron.log('STORE: ' + Object.keys(streetStore).length);
+    console.tron.log('CANDIDATES: ' + candidateStreets.length);
+
+    const originFeature = point(compassLineFeature.geometry.coordinates[0]);
+
+    for (let feature of candidateStreets) {
+      // await nextFrame; this.__frameCounter++;
+      // console.tron.log(JSON.stringify(feature.properties.name));
+      let collision = intersect(compassLineFeature, feature);
+
+      // console.tron.log("-STREETS- intersect: "+(Date.now()-topStartTime).toString()+'ms');
+      if (!collision) continue;
+      // NOTE: only run a successful collision once
+      if (streetStore[feature.properties['@id']]) continue;
+      streetStore[feature.properties['@id']] = true;
+
+      //  NOTE: adding try-catches to all these asyncs might be a GOOD IDEA
+      // This fixes MultiLine collisions to work with turf.distance:
+      if (collision.geometry.type === 'MultiPoint') {
+        Object.assign(collision.geometry, {
+          type: 'Point',
+          coordinates: collision.geometry.coordinates[0]
+        });
+      }
+      // console.log('HERE: '+JSON.stringify(collision));
+      const collisionDistance = turf.distance(originFeature,collision);
+
+      const street = {
+        name: feature.properties.name,
+        distance: collisionDistance.toFixed(2) + 'miles'
+      };
+      const relations = feature.properties['@relations'];
+      if (relations) {
+        let routes = {};
+        for (let relation of relations) {
+          // await nextFrame(); this.__frameCounter++;
+          if (relation.reltags.type === "route") {
+            routes[relation.reltags.ref] = true;
+          }
+        };
+        if (routes) street.routes = Object.keys(routes);
+      }
+      streetsAhead.push(street);
+    }
+    console.tron.log("FASTERER: "+ streetsAhead.length);
     return streetsAhead;
   }
 
@@ -398,7 +547,7 @@ class Compass {
     // console.tron.log('COMPASS: '+area);
 
     var candidateStreets = streetsTree.bbox(lineBox);
-    console.tron.log('CANDIDATES: '+candidateStreets.length);
+    // console.tron.log('CANDIDATES 1: '+candidateStreets.length);
 
     const originFeature = point(compassLineFeature.geometry.coordinates[0]);
     for (let feature of candidateStreets) {
@@ -414,7 +563,6 @@ class Compass {
           coordinates: collision.geometry.coordinates[0]
         }); 
       }
-      console.log('HERE: '+JSON.stringify(collision));
       const collisionDistance = turf.distance(originFeature,collision);
       const street = {
         name: feature.properties.name,
@@ -433,9 +581,9 @@ class Compass {
       }
       streetsAhead.push(street);
     }
+    console.tron.log("FASTER:   "+ streetsAhead.length);
     return streetsAhead;
   }
-
 
   async getStreetCollisions(compassLineFeature = this._getCompassLineFeature(),
                       streetsFixture = this._debugStreets ) {
