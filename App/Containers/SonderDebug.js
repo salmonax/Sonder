@@ -77,7 +77,7 @@ class SonderView extends Component {
   componentWillMount() {
     Compass.start({
       minAngle: 1,
-      radius: 0.013,
+      radius: 0.02,
       onInitialPosition: (initialPosition) => {
         this.setState({ initialPosition })
       },
@@ -347,9 +347,9 @@ class SonderView extends Component {
               this.state.entities.hoods.current.name : ''}</Text> : null }
         {this.state.entities ? <Text style={dynamicStyles.adjacentHood}>{nearestAdjacentHoodLabel}</Text> : null }
         {this.state.entities ? <Text>{JSON.stringify(Compass._getCompassLineFeature())}</Text> : null }
-        <Text>{this.state.entities ? 
+        <Text>{/*this.state.entities ? 
                 JSON.stringify(this.state.entities.streets) :
-                "Normalizing reticulating splines..."}</Text>
+                "Normalizing reticulating splines..."*/}</Text>
 
 
         {/*

@@ -279,14 +279,15 @@ export const polyIntersect = (line, polyline) => {
 // accepts coordinates at normal mulitPoly levels and runs polyIntersect
 // returns the nearest of each
 export const multiPolyIntersect = (line, multiPoly) => {
+  console.tron.log('MULTIPOLY CALLED');
   var result = false;
   var nearest;
   // Grabs only the outer shape of each poly
-  mulitPoly = multiPoly.map(coords => coords[0]);
+  // mulitPoly = multiPoly.map(coords => coords[0]);
   for (poly of multiPoly) {
-    let candidate = polyIntersect(line,poly);
+    let candidate = polyIntersect(line,poly[0]);
     if (candidate) {
-      let distance = candidate.distance
+      let distance = candidate.distance;
       if (nearest === undefined || distance < nearest) {
         nearest = distance;
         result = candidate;

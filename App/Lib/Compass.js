@@ -24,7 +24,29 @@ import turf from '@turf/turf';
 
 import { clone } from 'cloneextend';
 import vis from 'code42day-vis-why';
-import nextFrame from 'next-frame';
+// import nextFrame from 'next-frame';
+
+function smartFrame(fps) {
+    var minElapsed = 1000/fps;
+    var lastFrame;
+    return () => new Promise((resolve, reject) => {
+      var now = Date.now();
+      if (lastFrame && (now-lastFrame) < minElapsed) {
+        // console.tron.log('!NO ' + (now-lastFrame) + 'ms');
+        resolve();
+      } else {
+        // console.tron.log('!YES ' + (now-lastFrame) + 'ms');
+        lastFrame = now;
+        requestAnimationFrame(() => resolve());  
+      }
+    });
+}
+
+const nextFrame = smartFrame(20);
+
+// const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
+
+
 
 import HoodSmith from './HoodSelector';
 import Tree from 'rtree';
@@ -153,7 +175,7 @@ class Compass {
 
       // ToDo: this allows heading-stationary entity updates, but there's something in the logic that causes it to lag, crash, and suck; fix
       // Idea: maybe tag-team with headingUpdated, such that it is never called once for subsequent events?
-      // const compassLine = this._compassLine = this.getCompassLine(); // also carried over from headingChange
+      const compassLine = this._compassLine = this.getCompassLine(); // also carried over from headingChange
       // if (!compassLine || !this._hoodData || this._detectionPending || !this._lastHeading) return; // important debouncer and flow checks
       // this._detectionPending = true;
       // this._detectEntities(this._lastHeading).then(entities => {
@@ -167,6 +189,8 @@ class Compass {
     ReactNativeHeading.start(opts.minAngle || 1)
     .then(didStart => this._onHeadingSupported(didStart));
 
+    var totalSpeed = 0;
+    var trials = 0;
     DeviceEventEmitter.addListener('headingUpdated', data => {
       const heading = this._heading = data.heading;
       const compassLine = this._compassLine = this.getCompassLine();
@@ -189,7 +213,10 @@ class Compass {
         this._entities = entities;
         this._onEntitiesDetected(entities);
         this._detectionPending = false;
-        console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
+        trials++;
+        totalSpeed = (totalSpeed+Date.now()-startTime);
+        let avgSpeed = (totalSpeed/trials).toFixed(0);
+        console.tron.log('AVG: ' + avgSpeed+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
       });
       this._lastHeadingChange = Date.now();
       this._lastHeading = heading;
@@ -290,12 +317,10 @@ class Compass {
 
     var candidateHoods = hoodsTree.bbox(lineBox);
 
-    console.tron.log('ADJACENTS: '+candidateHoods.length);
+    // console.tron.log('ADJACENTS: '+candidateHoods.length);
     
     let compassCoords = compassLineFeature.geometry.coordinates;
     for (let feature of candidateHoods) {
-      // await nextFrame(); this.__frameCounter++;
-
       let featureCoords = feature.geometry.coordinates;
       let type = feature.geometry.type;
 
@@ -304,6 +329,7 @@ class Compass {
         multiPolyIntersect(compassCoords, featureCoords) :
         polyIntersect(compassCoords, featureCoords[0]);
       // console.tron.log('????'+JSON.stringify(collision));
+      await nextFrame(); this.__frameCounter++;
       if (!collision) continue;
       // WARNING: debug only! This is only here to render a line temporarily
       this.__lastCollisionPoint = collision.collision;
@@ -420,10 +446,11 @@ class Compass {
       // });
       // candidateStreets = candidateStreets.concat(newFoundStreets);
       candidateStreets = candidateStreets.concat(streetsTree.bbox(splitBox));
+      // await nextFrame; this.__frameCounter++;
     }
 
-    console.tron.log('STORE: ' + Object.keys(streetStore).length);
-    console.tron.log('CANDIDATES: ' + candidateStreets.length);
+    // console.tron.log('STORE: ' + Object.keys(streetStore).length);
+    // console.tron.log('CANDIDATES: ' + candidateStreets.length);
 
     const originFeature = point(compassLineFeature.geometry.coordinates[0]);
 
@@ -457,7 +484,7 @@ class Compass {
       }
       streetsAhead.push(street);
     }
-    console.tron.log("FASTERER: "+ streetsAhead.length);
+    // console.tron.log("FASTEST: "+ streetsAhead.length);
     return streetsAhead;
   }
 
