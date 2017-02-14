@@ -15,7 +15,15 @@ import ReactNativeHeading from 'react-native-heading';
 // Note: ignoring redux-saga structure for now, so this eventually shouldn't go in here!
 import FixtureApi from '../Services/FixtureApi';
 
-import { getRegionBBox, toCoords, toTuples, toTuple, splitBBox, polyIntersect, multiPolyIntersect } from '../Lib/MapHelpers';
+import { getRegionBBox, 
+         toCoords, 
+         toTuples, 
+         toTuple, 
+         splitBBox, 
+         polyIntersect, 
+         multiPolyIntersect,
+         getAngle
+       } from '../Lib/MapHelpers';
 import { lineString, point, polygon } from '@turf/helpers';
 import intersect from '@turf/intersect';
 import inside from '@turf/inside';
@@ -27,9 +35,9 @@ import vis from 'code42day-vis-why';
 // import nextFrame from 'next-frame';
 
 function smartFrame(fps) {
-    var minElapsed = 1000/fps;
-    var lastFrame;
-    return () => new Promise((resolve, reject) => {
+    let lastFrame;
+    const minElapsed = 1000/fps;
+    const requestFramePromise = (resolve, reject) => {
       var now = Date.now();
       if (lastFrame && (now-lastFrame) < minElapsed) {
         // console.tron.log('!NO ' + (now-lastFrame) + 'ms');
@@ -39,7 +47,8 @@ function smartFrame(fps) {
         lastFrame = now;
         requestAnimationFrame(() => resolve());  
       }
-    });
+    };
+    return () => new Promise(requestFramePromise);
 }
 
 const nextFrame = smartFrame(20);
@@ -201,6 +210,7 @@ class Compass {
       //   console.tron.log("EMITTER SEES PENDING")
       // }
       if (!compassLine || !this._hoodData || this._detectionPending) return;
+      this._splitBoxes = this.__getCompassLineBounds();
 
       // MEASURE 1: angle/timing kludge for feature detection
       // if (this._lastHeadingChange && Date.now()-this._lastHeadingChange < 1000) return;
@@ -252,7 +262,7 @@ class Compass {
     // END
     console.tron.log('---');
     await nextFrame(); this.__frameCounter++;
-    const hoods = await this.getHoodCollisionsFastest();
+    const hoods = await this.getHoodCollisionsFastester();
     await nextFrame(); this.__frameCounter++;
     const streets = await this.getStreetCollisionsFastest();
     // await nextFrame(); this.__frameCounter++;
@@ -305,6 +315,46 @@ class Compass {
     // return diagonal.map((index, i) => (i < diagonal.length-1 && i > 0) ? growBounds(splitBox[index]) : splitBox[index] );
   }
 
+  async getHoodCollisionsFastester(compassLineFeature = this._getCompassLineFeature(),
+                    adjacentHoods = this._hoodData.adjacentHoods,
+                    currentHood = this._hoodData.currentHood,
+                    hoodsTree = this._hoodsTree) {
+    var adjacents = [];
+    var splitBoxes = this._splitBoxes;
+
+    let hoodStore = {};
+    let compassCoords = compassLineFeature.geometry.coordinates;
+
+    // Note: this eschews candidateHoods; might want to
+    // still push hoods out later for something
+    for (let splitBox of splitBoxes) {
+      for (hood of hoodsTree.bbox(splitBox)) {
+        if (hoodStore[hood.properties['id']]) continue;
+        hoodStore[hood.properties['id']] = true;
+        const { coordinates, type } = hood.geometry;
+        const collision = (type === 'MultiPolygon') ?  
+          multiPolyIntersect(compassCoords, coordinates) :
+          polyIntersect(compassCoords, coordinates[0]);
+        if (!collision) continue;
+        // WARNING: debug only! This is only here to render a line temporarily
+        this.__lastCollisionPoint = collision.collision;
+        const collisionDistance = collision.distance;
+        adjacents.push({
+          name: hood.properties.label,
+          distance: collisionDistance.toFixed(2) + ' miles',
+        });
+      };
+      if (adjacents.length) break;
+    }
+    console.tron.log('ADJACENTS: '+adjacents.length);
+    const current = {
+      name: currentHood.properties.label,
+      coordinates: currentHood.geometry.coordinates,
+      feature: currentHood,
+    }
+    return {adjacents, current };
+  }
+
   async getHoodCollisionsFastest(compassLineFeature = this._getCompassLineFeature(),
                     adjacentHoods = this._hoodData.adjacentHoods,
                     currentHood = this._hoodData.currentHood,
@@ -317,7 +367,7 @@ class Compass {
 
     var candidateHoods = hoodsTree.bbox(lineBox);
 
-    // console.tron.log('ADJACENTS: '+candidateHoods.length);
+    console.tron.log('ADJACENTS: '+candidateHoods.length);
     
     let compassCoords = compassLineFeature.geometry.coordinates;
     for (let feature of candidateHoods) {
@@ -329,7 +379,7 @@ class Compass {
         multiPolyIntersect(compassCoords, featureCoords) :
         polyIntersect(compassCoords, featureCoords[0]);
       // console.tron.log('????'+JSON.stringify(collision));
-      await nextFrame(); this.__frameCounter++;
+      // await nextFrame(); this.__frameCounter++;
       if (!collision) continue;
       // WARNING: debug only! This is only here to render a line temporarily
       this.__lastCollisionPoint = collision.collision;
@@ -434,7 +484,7 @@ class Compass {
     var startTime, endTime, timeDiff;
     var topStartTime = Date.now();
 
-    var splitBoxes = this.__getCompassLineBounds();
+    var splitBoxes = this._splitBoxes;
     let candidateStreets = [];
     let streetStore = {};
     for (let splitBox of splitBoxes) {
@@ -456,6 +506,7 @@ class Compass {
 
     let compassCoords = compassLineFeature.geometry.coordinates;
     for (let feature of candidateStreets) {
+      if (streetStore[feature.properties['@id']]) continue;
       // await nextFrame; this.__frameCounter++;
       // console.tron.log(JSON.stringify(feature.properties.name));
 
@@ -463,13 +514,14 @@ class Compass {
 
       let collision = polyIntersect(compassCoords, featureCoords);
       if (!collision) continue;
-      if (streetStore[feature.properties['@id']]) continue;
+      // Note: only run a successful collision once
       streetStore[feature.properties['@id']] = true;
       const collisionDistance = collision.distance;
-
+      console.log(feature.properties.name +': '+ JSON.stringify(compassCoords) + ' !!! '+JSON.stringify(collision.segment));
       const street = {
         name: feature.properties.name,
-        distance: collisionDistance.toFixed(2) + 'miles'
+        distance: collisionDistance.toFixed(2) + ' miles',
+        angle: getAngle(compassCoords,collision.segment).toFixed(1)
       };
       const relations = feature.properties['@relations'];
       if (relations) {

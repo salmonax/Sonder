@@ -258,18 +258,19 @@ function getDistance(lng1, lat1, lng2, lat2) {
   return dist;
 }
 
-// takes an array of lngLats, returns collision and distance
+// Takes an array of lngLats, returns collision and distance
+// Note: this will probably be a little faster without all the spreads
 export const polyIntersect = (line, polyline) => {
     var result = false;
     var nearest;
     for (let i = 1; i < polyline.length; i++) {
-        let flatPolyline = [...polyline[i-1],...polyline[i]];
-        let collision = lineIntersect(...[].concat(...line), ...flatPolyline);
+        let segment = [polyline[i-1],polyline[i]];
+        let collision = lineIntersect(...[].concat(...line), ...[].concat(...segment));
         if (collision) {
             let distance = getDistance(...line[0],...collision);
             if (nearest === undefined || distance < nearest) {
                 nearest = distance;
-                result = { collision, distance };
+                result = { collision, segment, distance };
             }
         }
     }
@@ -296,6 +297,34 @@ export const multiPolyIntersect = (line, multiPoly) => {
   }
   return result;
 }
+
+
+// returns the acute angle between two lngLat tuples in degrees
+const getBearing = (line) => {
+    const degrees2radians = Math.PI / 180;
+    const radians2degrees = 180 / Math.PI;
+    const { sin, cos, atan2 } = Math;
+    const lng1 = degrees2radians * line[0][0];
+    const lng2 = degrees2radians * line[1][0];
+    const lat1 = degrees2radians * line[0][1];
+    const lat2 = degrees2radians * line[1][1];
+    const bearing = atan2(sin(lng2-lng1)*cos(lat2), 
+                 cos(lat1)*sin(lat2)-sin(lat1)*cos(lat2)*cos(lng2-lng1))*radians2degrees;
+    return (bearing < 0) ? 360+bearing : bearing;
+
+};
+export const getAngle = (one, two) => {
+    const bearing1 = getBearing(one);
+    const bearing2 = getBearing(two);
+    return (bearing2 > bearing1) ? bearing2-bearing1 : bearing1-bearing2;
+}
+
+// export const getAngle = (first, second) => {
+//     var m1 = (first[1][1]-first[0][1])/(first[1][0]-first[0][0]);
+//     var m2 = (second[1][1]-second[0][1])/(second[1][0]-second[0][0]);
+//     var angle = Math.atan((m1 - m2) / (1 - (m1 * m2)));
+//     return Math.abs(angle*180/Math.PI);
+// };
 
 // Similar to growBBox from Geohelpers, but takes tuples as input/output
 export const growBounds = (bounds, d = 0.0005) => [[bounds[0][0]-d,bounds[0][1]-d],[bounds[1][0]+d,bounds[1][1]+d]];

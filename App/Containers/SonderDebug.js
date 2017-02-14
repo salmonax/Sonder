@@ -88,7 +88,7 @@ class SonderView extends Component {
           hoods: hoodLatLngs,
           streets: streetLatLngs
         });
-        this.setHoodAnnotations(currentHood, adjacentHoods);
+        // this.setHoodAnnotations(currentHood, adjacentHoods);
         // this.setStreetAnnotations(streets); // WARNING: debug only; renders twice!
       },
       onHeadingSupported: (headingIsSupported) => 
@@ -119,7 +119,7 @@ class SonderView extends Component {
           console.tron.log('Position is missing! Mario is missing! Where is Carmen San Diego?!');
           this._map.setDirection(headingData.heading);
         }
-        // this.setCompassAnnotation(headingData);
+        this.setCompassAnnotation(headingData);
         // this._setCompassBoundsAnnotations();
       },
       onEntitiesDetected: (entities) => 
@@ -216,12 +216,13 @@ class SonderView extends Component {
 
   setCompassAnnotation(headingData) {
     let compassTuple = toTuples(headingData.compassLine);
-    let lastCollisionPoint = Compass.__lastCollisionPoint;
-    let endPoint = lastCollisionPoint ? 
-     [lastCollisionPoint[1],lastCollisionPoint[0]] :
-     compassTuple[1].reverse();
+    // let lastCollisionPoint = Compass.__lastCollisionPoint;
+    // let endPoint = lastCollisionPoint ? 
+    //  [lastCollisionPoint[1],lastCollisionPoint[0]] :
+    //  compassTuple[1].reverse();
 
-    compassTuple = [compassTuple[0].reverse(), endPoint]
+    // compassTuple = [compassTuple[0].reverse(), endPoint]
+    compassTuple = [compassTuple[0].reverse(), compassTuple[1].reverse()];
     if (!this.state.annotations.length) {
       this.setState({
         heading: headingData.heading,
@@ -347,9 +348,9 @@ class SonderView extends Component {
               this.state.entities.hoods.current.name : ''}</Text> : null }
         {this.state.entities ? <Text style={dynamicStyles.adjacentHood}>{nearestAdjacentHoodLabel}</Text> : null }
         {this.state.entities ? <Text>{JSON.stringify(Compass._getCompassLineFeature())}</Text> : null }
-        <Text>{/*this.state.entities ? 
+        <Text>{this.state.entities ? 
                 JSON.stringify(this.state.entities.streets) :
-                "Normalizing reticulating splines..."*/}</Text>
+                "Normalizing reticulating splines..."}</Text>
 
 
         {/*
