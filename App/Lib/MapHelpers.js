@@ -316,7 +316,9 @@ const getBearing = (line) => {
 export const getAngle = (one, two) => {
     const bearing1 = getBearing(one);
     const bearing2 = getBearing(two);
-    return (bearing2 > bearing1) ? bearing2-bearing1 : bearing1-bearing2;
+    const angle = (bearing2 > bearing1) ? bearing2-bearing1 : bearing1-bearing2;
+    // return angle;
+    return Math.abs((angle <= 90) ? angle : 180-angle);
 }
 
 // export const getAngle = (first, second) => {

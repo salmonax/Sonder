@@ -264,7 +264,7 @@ class Compass {
     await nextFrame(); this.__frameCounter++;
     const hoods = await this.getHoodCollisionsFastester();
     await nextFrame(); this.__frameCounter++;
-    const streets = await this.getStreetCollisionsFastest();
+    const streets = await this.getStreetCollisionsFastester();
     // await nextFrame(); this.__frameCounter++;
     // const otherStreets = await this.getStreetCollisionsFaster();
     // if (streets.length !== otherStreets.length) {
@@ -302,7 +302,7 @@ class Compass {
 
     const heading = this._heading;
     // calculate quadrants from 0 to 3 from angle
-    var quadrant = Math.floor((heading%360)/90);
+    var quadrant = Math.floor(heading/90);
     var splitBox = splitBBox(lineBox);
     // This is what goes in our recursive function, by the way:
     splitBox = splitBox.reduce((result, bounds) => result.concat(splitBBox(bounds)),[]);
@@ -328,7 +328,7 @@ class Compass {
     // Note: this eschews candidateHoods; might want to
     // still push hoods out later for something
     for (let splitBox of splitBoxes) {
-      for (hood of hoodsTree.bbox(splitBox)) {
+      for (let hood of hoodsTree.bbox(splitBox)) {
         if (hoodStore[hood.properties['id']]) continue;
         hoodStore[hood.properties['id']] = true;
         const { coordinates, type } = hood.geometry;
@@ -474,6 +474,53 @@ class Compass {
       feature: currentHood,
     }
     return {adjacents, current };
+  }
+  async getStreetCollisionsFastester(
+                      maxStreets = 4,
+                      compassLineFeature = this._getCompassLineFeature(),
+                      streetsFixture = this._debugStreets, 
+                      streetsTree =  this._streetsTree ) {
+    // return ['Streets Stubbed'];
+    var streetsAhead = [];
+    var startTime, endTime, timeDiff;
+    var topStartTime = Date.now();
+
+    var splitBoxes = this._splitBoxes;
+    let candidateStreets = [];
+    let streetStore = {};
+    let compassCoords = compassLineFeature.geometry.coordinates;
+    for (let splitBox of splitBoxes) {
+      for (let street of streetsTree.bbox(splitBox)) {
+        if (streetStore[street.properties['@id']]) continue;
+        // await nextFrame; this.__frameCounter++;
+        const { coordinates } = street.geometry;
+        const collision = polyIntersect(compassCoords, coordinates);
+        if (!collision) continue;
+        // Note: only run a successful collision once
+        streetStore[street.properties['@id']] = true;
+        const streetData = {
+          name: street.properties.name,
+          distance: collision.distance.toFixed(2) + ' miles',
+          angle: getAngle(compassCoords,collision.segment).toFixed(1)
+        };
+        const relations = street.properties['@relations'];
+        if (relations) {
+          let routes = {};
+          for (let relation of relations) {
+            // await nextFrame(); this.__frameCounter++;
+            const { type, ref } = relation.reltags;
+            if (type === "route") routes[ref] = true;
+          };
+          if (routes) streetData.routes = Object.keys(routes);
+        }
+        streetsAhead.push(streetData);
+        if (streetsAhead.length >= maxStreets) {
+          // Yuck, stop toFixing the distance 
+          return streetsAhead.sort((a,b) => parseFloat(a.distance)-parseFloat(b.distance));
+        }
+      }
+    }
+    return streetsAhead;
   }
 
   async getStreetCollisionsFastest(compassLineFeature = this._getCompassLineFeature(),
