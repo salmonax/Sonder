@@ -40,15 +40,19 @@ Mapbox.setAccessToken(accessToken);
 const hoods = Compass.getDebugHoods();
 
 class SonderView extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      zoom: 13,
+      userTrackingMode: Mapbox.userTrackingMode.follow,
+      annotations: []
+    }; 
+  }
+
   currentHoodColor = '#AA9922';
-  state = {
-    zoom: 12,
-    userTrackingMode: Mapbox.userTrackingMode.follow,
-    annotations: []
-  };
 
   onRegionDidChange = (location) => {
-    this.setState({ currentZoom: location.zoomLevel });
+    // this.setState({ currentZoom: location.zoomLevel });
     // console.log('onRegionDidChange', location);
   };
   onRegionWillChange = (location) => {
@@ -79,7 +83,9 @@ class SonderView extends Component {
       minAngle: 1,
       radius: 0.02,
       onInitialPosition: (initialPosition) => {
-        this.setState({ initialPosition })
+        const { latitude, longitude } = initialPosition.coords;
+        this.setState({ initialPosition });
+        // this.setPositionAnnotation(latitude, longitude, 'onInitialPosition');
       },
       onInitialHoods: ({ currentHood, adjacentHoods, hoodLatLngs, streetLatLngs, streets }) => {
         this.setState({ 
@@ -88,7 +94,7 @@ class SonderView extends Component {
           hoods: hoodLatLngs,
           streets: streetLatLngs
         });
-        // this.setHoodAnnotations(currentHood, adjacentHoods);
+        this.setHoodAnnotations(currentHood, adjacentHoods);
         // this.setStreetAnnotations(streets); // WARNING: debug only; renders twice!
       },
       onHeadingSupported: (headingIsSupported) => 
@@ -101,7 +107,8 @@ class SonderView extends Component {
         if (this._map) {
           this._map.easeTo(ops, true, () => {});
         }
-        this.setState({ lastPosition })
+        this.setState({ lastPosition });
+        this.setPositionAnnotation(latitude, longitude, 'onPositionChange');
       },
       onHoodChange: ({newHood, adjacentHoods}) => {
         this.setState({ currentHood: newHood, adjacentHoods });
@@ -119,8 +126,14 @@ class SonderView extends Component {
           console.tron.log('Position is missing! Mario is missing! Where is Carmen San Diego?!');
           this._map.setDirection(headingData.heading);
         }
-        this.setCompassAnnotation(headingData);
+        // this.setCompassAnnotation(headingData);
         // this._setCompassBoundsAnnotations();
+      },
+      onStreetsChange: (streets) => {
+        console.tron.log('Loaded ' + streets.length + ' streets!')
+        // alert('aLL SET HOSss');
+        // this.setStreetAnnotations(streets);
+
       },
       onEntitiesDetected: (entities) => 
         this.setState({ entities })
@@ -129,6 +142,7 @@ class SonderView extends Component {
 
   componentDidMount() {
     Orientation.addOrientationListener(this._orientationDidChange);
+    // this._map.setZoomLevel(this.state.zoom, false);
   }
 
   componentWillUnmount() {
@@ -164,12 +178,35 @@ class SonderView extends Component {
     });
   }
 
+  setPositionAnnotation(latitude, longitude, source = 'Unknown') {
+    const currentPosition = {
+      id: 'currentPosition',
+      coordinates: [latitude, longitude],
+      type: 'point',
+      title: 'Test Location',
+      subtitle: source,
+      annotationImage: {
+          source: { uri: 'friendmarker' },
+          height: 25,
+          width: 25
+        }
+    };
+
+
+    this.setState({
+      annotations: [
+        ...this.state.annotations.filter(annotation => annotation.id !== 'currentPosition'),
+        currentPosition
+      ]
+    });
+  }
+
   setHoodAnnotations(currentHood, adjacentHoods) {
     // Draw the hood annotation, with random color, then with BinduRGB
     const currentHoodAnnotations = hoodToAnnotations(currentHood, {
       id: currentHood.properties.label,
       // fillAlpha: 0.5,
-      // alpha: 0.5,
+      alpha: 0.4,
       class: 'hood',
       fillColor: '#AA9922',
       strokeColor: '#FFFFFF',
@@ -182,7 +219,7 @@ class SonderView extends Component {
       const annotations = hoodToAnnotations(adjacentHood, {
         id: adjacentHood.properties.label,
         // fillAlpha: 0.5,
-        // alpha: 0.5,
+        alpha: 0.4,
         class: 'hood',
         fillColor: binduMapBox(adjacentHood.properties.label),
         strokeColor: '#FFFFFF',
@@ -255,6 +292,11 @@ class SonderView extends Component {
         return (parseFloat(a.distance) - parseFloat(b.distance));
       })[0] : 
       '';
+    const nearestStreet = (this.state.entities && this.state.entities.streets.length) ? 
+                            this.state.entities.streets[0].name : '';
+    const nearestStreetDistance = (this.state.entities && this.state.entities.streets.length) ? 
+                            this.state.entities.streets[0].distance : '';
+
     const dynamicStyles = StyleSheet.create({
       currentHood: {
         position: 'absolute',
@@ -262,7 +304,7 @@ class SonderView extends Component {
         paddingRight: 10,
         right: 20,
         bottom: 72,
-        fontSize: 32,
+        fontSize: 28,
         borderColor: '#AA9922',
         borderWidth: 1,
         color: '#AA9922',
@@ -278,6 +320,18 @@ class SonderView extends Component {
         backgroundColor: '#000000',
         color: (nearestAdjacentHood && this.state.entities) ? binduMapBox(nearestAdjacentHood.name) : '#ffffff',
         borderColor: (nearestAdjacentHood && this.state.entities) ? binduMapBox(nearestAdjacentHood.name) : '#ffffff',
+        borderWidth: 1
+      },
+      nearestStreet: {
+        position: 'absolute',
+        paddingLeft: 10,
+        paddingRight: 10,
+        right: 5,
+        top: 115,
+        fontSize: 16,
+        backgroundColor: '#000000',
+        color: (nearestStreet && this.state.entities) ? binduMapBox(nearestStreet) : '#ffffff',
+        borderColor: (nearestStreet && this.state.entities) ? binduMapBox(nearestStreet) : '#ffffff',
         borderWidth: 1
       }
     });
@@ -340,18 +394,22 @@ class SonderView extends Component {
             strokeOpacity="0.5"
           />
         </Svg>
-        <Text>{this.state.headingIsSupported ?
+
+        {/*<Text>{this.state.headingIsSupported ?
                 getPrettyBearing(this.state.heading)
-                : "Heading unsupported." }</Text>
+                : "Heading unsupported." }</Text>*/}
 
         {this.state.entities ? <Text style={dynamicStyles.currentHood}>{this.state.entities ? 
               this.state.entities.hoods.current.name : ''}</Text> : null }
         {this.state.entities ? <Text style={dynamicStyles.adjacentHood}>{nearestAdjacentHoodLabel}</Text> : null }
+        {this.state.entities ? <Text style={dynamicStyles.nearestStreet}>{nearestStreet+` (${nearestStreetDistance})`}</Text> : null }
+        
+        {/*
         {this.state.entities ? <Text>{JSON.stringify(Compass._getCompassLineFeature())}</Text> : null }
         <Text>{this.state.entities ? 
                 JSON.stringify(this.state.entities.streets) :
                 "Normalizing reticulating splines..."}</Text>
-
+        */}
 
         {/*
         <Text>{this.state.entities ? 

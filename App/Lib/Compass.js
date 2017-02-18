@@ -1,11 +1,16 @@
 /*
 First-pass refactor of monolithic compass
 ------------------------------------------
-ToDos:
+Backlog:
+- Refactor the streets fetching to StreetSmith
+- Decouple from react-native
+- Refactor lifecycle function generation, possibly using Zakas' method
+Done:
 - Put promises everywhere
 - Make it work with batching optimizations,
     or use requestAnimationFrame, or something
 - Refactor the neighborhood stuff out of here
+Icebox:
 - Add isReady() helper functions to go along with events
 - Unit tests
 */
@@ -22,7 +27,9 @@ import { getRegionBBox,
          splitBBox, 
          polyIntersect, 
          multiPolyIntersect,
-         getAngle
+         getAngle,
+         overpassToLineString,
+         milesToSteps,
        } from '../Lib/MapHelpers';
 import { lineString, point, polygon } from '@turf/helpers';
 import intersect from '@turf/intersect';
@@ -30,9 +37,15 @@ import inside from '@turf/inside';
 import Offset from 'polygon-offset';
 import turf from '@turf/turf';
 
+
+
 import { clone } from 'cloneextend';
 import vis from 'code42day-vis-why';
 // import nextFrame from 'next-frame';
+
+import { create } from 'apisauce';
+const api = create({ baseURL: 'http://overpass-api.de/api/interpreter'});
+
 
 function smartFrame(fps) {
     let lastFrame;
@@ -48,7 +61,13 @@ function smartFrame(fps) {
         requestAnimationFrame(() => resolve());  
       }
     };
-    return () => new Promise(requestFramePromise);
+    let nextFrame = () => new Promise(requestFramePromise);
+    return Object.assign(nextFrame, {
+      map: (collection, predicate) => {},
+      filter: (collection, comparator) => {},
+      reduce: (collection, predicate) => {},
+      forEach: (collection, predicate) => {}
+    });
 }
 
 const nextFrame = smartFrame(20);
@@ -80,6 +99,7 @@ class Compass {
                     'onInitialHoods',
                     'onEntitiesDetected',
                     'onHoodChange',
+                    'onStreetsChange',
                   ];
     this.EVENTS.forEach(event => {
       this['_'+event] = () => {};
@@ -91,7 +111,7 @@ class Compass {
     this.entities = {};
     this._currentPosition = null;
     this._heading = null;
-    this._debugStreets = this.getDebugStreets();
+    this._debugStreets = this.getDebugStreets(); // deprecate
 
     /* DEBUG STREET TEST */
     this._streetsTree = new Tree();
@@ -116,6 +136,13 @@ class Compass {
       this._hoodsTree.geoJSON(adjacentHoods);
 
       this._onHoodChange(hoodData);
+      // Also, load streets for all adjacent neighborhoods
+      this.fetchStreets().then(streets => {
+        this._streetsTree = new Tree();
+        this._streetsTree.geoJSON(streets);
+        this._onStreetsChange(streets);
+        this._currentStreets = streets;
+      });
     });
   }
   getDebugHoods() {
@@ -173,6 +200,16 @@ class Compass {
         this._hoodsTree = new Tree()
         this._hoodsTree.geoJSON(hoodData.adjacentHoods);
         this._onInitialHoods(hoodData);
+        // ToDo: dry this up; dry ALL of this up.
+        this.fetchStreets().then(streets => {
+          this._streetsTree = new Tree();
+          this._streetsTree.geoJSON(streets);
+          this._onStreetsChange(streets);
+          this._currentStreets = streets;
+          // alert('Everything is good, hombre!');
+        });
+
+
       });
 
     this.watchID = navigator.geolocation.watchPosition(position => {
@@ -231,6 +268,19 @@ class Compass {
       this._lastHeadingChange = Date.now();
       this._lastHeading = heading;
     });
+  }
+
+  fetchStreets() {
+    // '[out:json]; (way[\'tiger:name_type\'=\'St\'](37.712199,-122.503041,37.750701,-122.461064);); out geom; >; out skel qt;'
+
+    const queryHullString = turf.convex(turf.featureCollection(this._hoodData.adjacentHoods))
+                              .geometry.coordinates[0].map(tuple => [tuple[1],tuple[0]].join(' ')).join(' ');
+    // const bbox = turf.bbox(turf.featureCollection(this._hoodData.adjacentHoods));
+    // const queryBBoxString = [bbox[1], bbox[0], bbox[3], bbox[2]].join(',');
+    const query = `[out:json]; (way['tiger:name_type'](poly:"${queryHullString}");); out geom;`;
+    // alert(query);
+    return api.post('', query).then(res => res.data.elements.map(element => overpassToLineString(element)) );
+    // res.data.elements.map(element => overpassToLineString(element))
   }
 
   getInitialPosition() {
@@ -500,7 +550,7 @@ class Compass {
         streetStore[street.properties['@id']] = true;
         const streetData = {
           name: street.properties.name,
-          distance: collision.distance.toFixed(2) + ' miles',
+          distance: milesToSteps(collision.distance).toFixed() + ' steps',
           angle: getAngle(compassCoords,collision.segment).toFixed(1)
         };
         const relations = street.properties['@relations'];
@@ -514,10 +564,11 @@ class Compass {
           if (routes) streetData.routes = Object.keys(routes);
         }
         streetsAhead.push(streetData);
-        if (streetsAhead.length >= maxStreets) {
-          // Yuck, stop toFixing the distance 
-          return streetsAhead.sort((a,b) => parseFloat(a.distance)-parseFloat(b.distance));
-        }
+      }
+      if (streetsAhead.length >= maxStreets) {
+        return streetsAhead
+                .sort((a,b) => parseFloat(a.distance)-parseFloat(b.distance))
+                .slice(0,maxStreets);
       }
     }
     return streetsAhead;

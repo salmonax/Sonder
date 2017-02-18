@@ -330,3 +330,19 @@ export const getAngle = (one, two) => {
 
 // Similar to growBBox from Geohelpers, but takes tuples as input/output
 export const growBounds = (bounds, d = 0.0005) => [[bounds[0][0]-d,bounds[0][1]-d],[bounds[1][0]+d,bounds[1][1]+d]];
+
+export const overpassToLineString = (item) => {
+  const id = item.type+'/'+item.id;
+  return { 
+    type: 'Feature',
+    id: id,
+    properties: Object.assign({},{ ['@id']: id },item.tags),
+    geometry: {
+      type: 'LineString',
+      coordinates: item.geometry.map(coord => [coord.lon, coord.lat])
+    }
+  }
+}
+
+export const milesToSteps = (miles, height = 70) => 
+                              miles*5280/(height/12*0.413);
