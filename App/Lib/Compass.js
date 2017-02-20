@@ -111,11 +111,15 @@ class Compass {
     this.entities = {};
     this._currentPosition = null;
     this._heading = null;
+    this._headingCorrection = 13.57; // Used for calibrating the heading. Defaulting to SF's according to MapBox
     this._debugStreets = this.getDebugStreets(); // deprecate
 
     /* DEBUG STREET TEST */
     this._streetsTree = new Tree();
     this._streetsTree.geoJSON(this._debugStreets);
+
+    // Movement output
+    this.__mapBoxMovement = [];
 
     this._debugHoods = this.getDebugHoods();
     // Delegate hood changes to HoodSmith
@@ -224,8 +228,13 @@ class Compass {
         // console.tron.log('NAVIGATOR: ' + JSON.stringify(this._currentPosition));
         HoodSmith.refresh(this._currentPosition);
         console.log("2. GOT POSITION CHANGE");
+
+        // WARNING: kludge for outputting annotations
+        this.__mapBoxMovement.push([this._currentPosition.latitude, this._currentPosition.longitude]);
+
         this._onPositionChange(position); // probably should pass position.coords
         console.log("2.5. RAN ONPOSITIONCHANGE");
+
 
         // ToDo: this allows heading-stationary entity updates, but there's something in the logic that causes it to lag, crash, and suck; fix
         // Idea: maybe tag-team with headingUpdated, such that it is never called once for subsequent events?
@@ -247,7 +256,7 @@ class Compass {
     var totalSpeed = 0;
     var trials = 0;
     DeviceEventEmitter.addListener('headingUpdated', data => {
-      const heading = this._heading = data.heading;
+      const heading = this._heading = (data.heading+this._headingCorrection)%360; // correction in SF is 13.586
       const compassLine = this._compassLine = this.getCompassLine();
       // Note: just as here, it might be best to eventually forward both position and heading to all Compass
       //lifecycle functions
@@ -272,11 +281,16 @@ class Compass {
         trials++;
         totalSpeed = (totalSpeed+Date.now()-startTime);
         let avgSpeed = (totalSpeed/trials).toFixed(0);
-        console.tron.log('AVG: ' + avgSpeed+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
+        // console.tron.log('AVG: ' + avgSpeed+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
       });
       this._lastHeadingChange = Date.now();
       this._lastHeading = heading;
     });
+  }
+
+  setHeadingCorrection(degrees) {
+    this._headingCorrection = Math.round(degrees*1000)/1000;
+    console.tron.log('roundedCorrection: ' + this._headingCorrection);
   }
 
   setPosition(positionCoords) {
@@ -290,9 +304,15 @@ class Compass {
       // console.tron.log(JSON.stringify(positionCoords));
       this._currentPosition = positionCoords;
       HoodSmith.refresh(this._currentPosition);
+
+      // WARNING: kludge for outputting annotations
+      this.__mapBoxMovement.push([this._currentPosition.latitude, this._currentPosition.longitude]);
+
       console.log("2. GOT POSITION CHANGE");
       this._onPositionChange({ coords: positionCoords }); // this should DEFINITELY pass position.coords
       console.log("2.5. RAN ONPOSITIONCHANGE");
+
+      // console.tron.log(JSON.stringify(positionCoords.trueHeading - positionCoords.magneticHeading));
 
       // ToDo: this allows heading-stationary entity updates, but there's something in the logic that causes it to lag, crash, and suck; fix
       // Idea: maybe tag-team with headingUpdated, such that it is never called once for subsequent events?
@@ -310,7 +330,7 @@ class Compass {
 
   fetchStreets() {
     // '[out:json]; (way[\'tiger:name_type\'=\'St\'](37.712199,-122.503041,37.750701,-122.461064);); out geom; >; out skel qt;'
-    return Promise.resolve(this._debugStreets);
+    return Promise.resolve(this._debugStreets); // just a stubber
 
     const queryHullString = turf.convex(turf.featureCollection(this._hoodData.adjacentHoods))
                               .geometry.coordinates[0].map(tuple => [tuple[1],tuple[0]].join(' ')).join(' ');

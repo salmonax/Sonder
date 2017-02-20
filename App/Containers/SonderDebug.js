@@ -51,7 +51,10 @@ class SonderView extends Component {
   };
   onUpdateUserLocation = (location) => {
     // console.tron.log('MAPBOX: ' + JSON.stringify(location));
+    const { trueHeading, magneticHeading } = location;
     Compass.setPosition(location);
+    Compass.setHeadingCorrection(trueHeading-magneticHeading);
+
     console.log('onUpdateUserLocation', location);
   };
   onOpenAnnotation = (annotation) => {
@@ -104,6 +107,7 @@ class SonderView extends Component {
         }
         this.setState({ lastPosition });
         this.setPositionAnnotation(latitude, longitude, 'onPositionChange');
+        this._setMapBoxMovement();
       },
       onHoodChange: ({newHood, adjacentHoods}) => {
         this.setState({ currentHood: newHood, adjacentHoods });
@@ -132,7 +136,7 @@ class SonderView extends Component {
       },
       onEntitiesDetected: (entities) => {
         this.setState({ entities });
-        // this.setStreetAnnotations(entities.streets.map(street => street.feature));
+        this.setStreetAnnotations(entities.streets.map(street => street.feature));
       }
     });
   }
@@ -155,6 +159,23 @@ class SonderView extends Component {
       annotations: [
         ...this.state.annotations.filter(annotation => annotation.class !== 'street'),
         ...streetAnnotations
+      ]
+    });
+  }
+
+  _setMapBoxMovement() {
+    const movementLine = {
+      id: 'movementLine',
+      coordinates: Compass.__mapBoxMovement.slice(),
+      type: 'polyline',
+      strokeColor: '#0000FF',
+      strokeWidth: 2
+    };
+    
+    this.setState({
+      annotations: [
+        ...this.state.annotations.filter(annotation => annotation.id !== 'movementLine'),
+        movementLine
       ]
     });
   }
