@@ -9,7 +9,6 @@ import {
   StatusBar,
   View,
   ScrollView,
-  Dimensions,
 } from 'react-native';
 
 import Styles from './Styles/MapViewStyle';
@@ -23,16 +22,8 @@ import {
   toTuples,
   binduMapBox,
 } from '../Lib/MapHelpers';
-import Svg, {
-  Circle, 
-  Line,
-} from 'react-native-svg';
-import Orientation from 'react-native-orientation';
 
-let { width, height } = Dimensions.get('window');
-let centerY = Math.round(height/2);
-let centerX = Math.round(width/2);
-console.tron.log(JSON.stringify({ width, height, centerX, centerY }));
+import CompassGizmo from '../Components/CompassGizmo';
 
 const accessToken = 'pk.eyJ1Ijoic2FsbW9uYXgiLCJhIjoiY2l4czY4dWVrMGFpeTJxbm5vZnNybnRrNyJ9.MUj42m1fjS1vXHFhA_OK_w';
 Mapbox.setAccessToken(accessToken);
@@ -59,6 +50,8 @@ class SonderView extends Component {
     // console.log('onRegionWillChange', location);
   };
   onUpdateUserLocation = (location) => {
+    // console.tron.log('MAPBOX: ' + JSON.stringify(location));
+    Compass.setPosition(location);
     console.log('onUpdateUserLocation', location);
   };
   onOpenAnnotation = (annotation) => {
@@ -82,6 +75,7 @@ class SonderView extends Component {
     Compass.start({
       minAngle: 1,
       radius: 0.02,
+      manualMovement: true,
       onInitialPosition: (initialPosition) => {
         const { latitude, longitude } = initialPosition.coords;
         this.setState({ initialPosition });
@@ -102,6 +96,7 @@ class SonderView extends Component {
       onPositionChange: (lastPosition) => {
         // console.tron.log("POSITION CHANGED: " + JSON.stringify(lastPosition.coords));
         const { latitude, longitude } = lastPosition.coords;
+        console.tron.log('onPositionChange: ' + latitude + ' ' + longitude);
         const ops = { latitude, longitude };
         if (this._lastHeading) { ops.direction = this._lastHeading }
         if (this._map) {
@@ -135,14 +130,11 @@ class SonderView extends Component {
         // this.setStreetAnnotations(streets);
 
       },
-      onEntitiesDetected: (entities) => 
-        this.setState({ entities })
+      onEntitiesDetected: (entities) => {
+        this.setState({ entities });
+        // this.setStreetAnnotations(entities.streets.map(street => street.feature));
+      }
     });
-  }
-
-  componentDidMount() {
-    Orientation.addOrientationListener(this._orientationDidChange);
-    // this._map.setZoomLevel(this.state.zoom, false);
   }
 
   componentWillUnmount() {
@@ -239,18 +231,6 @@ class SonderView extends Component {
     // Draw the adjacenthood annotations, with random color, then with BinduRGB
   }
   
-  _orientationDidChange(orientation) {
-    // Listener seems to fire too early for Dimensions.get() to work
-    // Just switch hte previous values:
-    const lastWidth = width;
-    width = height;
-    height = lastWidth;
-    centerY = Math.round(height/2);
-    centerX = Math.round(width/2);
-    console.tron.log(orientation);
-    console.tron.log(JSON.stringify({ width, height, centerX, centerY }));
-  }
-
   setCompassAnnotation(headingData) {
     let compassTuple = toTuples(headingData.compassLine);
     // let lastCollisionPoint = Compass.__lastCollisionPoint;
@@ -286,7 +266,7 @@ class SonderView extends Component {
   }
 
   render() {
-    StatusBar.setHidden(true);
+    StatusBar.setHidden(false);
     const nearestAdjacentHood = (this.state.entities) ? 
       this.state.entities.hoods.adjacents.sort((a,b) => {
         return (parseFloat(a.distance) - parseFloat(b.distance));
@@ -296,7 +276,6 @@ class SonderView extends Component {
                             this.state.entities.streets[0].name : '';
     const nearestStreetDistance = (this.state.entities && this.state.entities.streets.length) ? 
                             this.state.entities.streets[0].distance : '';
-
     const dynamicStyles = StyleSheet.create({
       currentHood: {
         position: 'absolute',
@@ -336,6 +315,20 @@ class SonderView extends Component {
       }
     });
     const nearestAdjacentHoodLabel = (nearestAdjacentHood && this.state.entities) ? nearestAdjacentHood.name +' ('+nearestAdjacentHood.distance+')' : '';
+    
+    // if (this.__lastHeading !== undefined) { 
+    //   if (this.__lastHeading === this.heading) {
+    //     console.tron.log("DANGER DANGER DANGER!!!!!!");
+    //     this.redundancyCounter++;
+    //   } else {
+    //     console.tron.log('Rendered ' + this.redundancyCounter + ' times');
+    //     this.redundancyCounter = 1;
+    //   }
+    // } else {
+    //   this.redundancyCounter = 1;
+    // }
+    // this.__lastHeading = this.state.heading;
+
     return (
       <View style={styles.container}>
         <MapView
@@ -361,39 +354,7 @@ class SonderView extends Component {
           onLongPress={this.onLongPress}
           onTap={this.onTap}
         />
-        <Svg
-          style={styles.overlay}
-          height={height}
-          width={width}
-        >
-          <Circle
-              cx={centerX}
-              cy={centerY}
-              r="150"
-              stroke="white"
-              strokeWidth="2"
-              strokeOpacity="0.5"
-              fillOpacity="0"
-          />
-          <Line
-            x1={centerX}
-            x2={centerX}
-            y1="0"
-            y2={height}
-            stroke="white"
-            strokeWidth="1"
-            strokeOpacity="0.5"
-          />
-          <Line
-            y1={centerY}
-            y2={centerY}
-            x1="0"
-            x2={width}
-            stroke="white"
-            strokeWidth="1"
-            strokeOpacity="0.5"
-          />
-        </Svg>
+        <CompassGizmo heading={this.state.heading} />
 
         {/*<Text>{this.state.headingIsSupported ?
                 getPrettyBearing(this.state.heading)
@@ -441,11 +402,6 @@ const mapStateToProps = (state) => {
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-  },
   currentHood: {
     position: 'absolute',
     right: 0,

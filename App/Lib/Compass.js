@@ -163,6 +163,10 @@ class Compass {
   }
   start(opts) {
     /* Backlog:
+       - Refactor with generators and channels
+          -- This might fix the trouble with detecting entities on movement
+       - Separate emitter management and hood/street detection responsibilities
+       Done:
        - Move to async/await, make all the logic consistent
           -- Start with detection, then features update code
        - Change ALL forEach's into for-of loops for speed
@@ -212,25 +216,30 @@ class Compass {
 
       });
 
-    this.watchID = navigator.geolocation.watchPosition(position => {
-      this._currentPosition = position.coords;
-      HoodSmith.refresh(this._currentPosition);
-      console.log("2. GOT POSITION CHANGE");
-      this._onPositionChange(position); // probably should pass position.coords
-      console.log("2.5. RAN ONPOSITIONCHANGE");
+    // If manual movement is set, expect position updates to come in via setPosition();
+    this._manualMovement = opts.manualMovement;
+    if (!this._manualMovement) {
+      this.watchID = navigator.geolocation.watchPosition(position => {
+        this._currentPosition = position.coords;
+        // console.tron.log('NAVIGATOR: ' + JSON.stringify(this._currentPosition));
+        HoodSmith.refresh(this._currentPosition);
+        console.log("2. GOT POSITION CHANGE");
+        this._onPositionChange(position); // probably should pass position.coords
+        console.log("2.5. RAN ONPOSITIONCHANGE");
 
-      // ToDo: this allows heading-stationary entity updates, but there's something in the logic that causes it to lag, crash, and suck; fix
-      // Idea: maybe tag-team with headingUpdated, such that it is never called once for subsequent events?
-      const compassLine = this._compassLine = this.getCompassLine(); // also carried over from headingChange
-      // if (!compassLine || !this._hoodData || this._detectionPending || !this._lastHeading) return; // important debouncer and flow checks
-      // this._detectionPending = true;
-      // this._detectEntities(this._lastHeading).then(entities => {
-      //   this._entities = entities;
-      //   this._onEntitiesDetected(entities);
-      //   this._detectionPending = false;
-      //   // console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
-      // });
-    });
+        // ToDo: this allows heading-stationary entity updates, but there's something in the logic that causes it to lag, crash, and suck; fix
+        // Idea: maybe tag-team with headingUpdated, such that it is never called once for subsequent events?
+        const compassLine = this._compassLine = this.getCompassLine(); // also carried over from headingChange
+        // if (!compassLine || !this._hoodData || this._detectionPending || !this._lastHeading) return; // important debouncer and flow checks
+        // this._detectionPending = true;
+        // this._detectEntities(this._lastHeading).then(entities => {
+        //   this._entities = entities;
+        //   this._onEntitiesDetected(entities);
+        //   this._detectionPending = false;
+        //   // console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
+        // });
+      });
+    }
 
     ReactNativeHeading.start(opts.minAngle || 1)
     .then(didStart => this._onHeadingSupported(didStart));
@@ -270,8 +279,38 @@ class Compass {
     });
   }
 
+  setPosition(positionCoords) {
+    // Note: mapbox requires a RAF call in order to actually re-render neighborhoods
+    //  Not sure about modularity when it comes to this, but I'm already making extensive use of
+    //  RAF via smartFrame(), so what the hey
+    requestAnimationFrame(() => {
+      // Currently leaving it up to the caller to do that.
+      if (!this._active || !this._manualMovement) return;
+      // WARNING: copied this from the watchposition callback
+      // console.tron.log(JSON.stringify(positionCoords));
+      this._currentPosition = positionCoords;
+      HoodSmith.refresh(this._currentPosition);
+      console.log("2. GOT POSITION CHANGE");
+      this._onPositionChange({ coords: positionCoords }); // this should DEFINITELY pass position.coords
+      console.log("2.5. RAN ONPOSITIONCHANGE");
+
+      // ToDo: this allows heading-stationary entity updates, but there's something in the logic that causes it to lag, crash, and suck; fix
+      // Idea: maybe tag-team with headingUpdated, such that it is never called once for subsequent events?
+      const compassLine = this._compassLine = this.getCompassLine(); // also carried over from headingChange
+      // if (!compassLine || !this._hoodData || this._detectionPending || !this._lastHeading) return; // important debouncer and flow checks
+      // this._detectionPending = true;
+      // this._detectEntities(this._lastHeading).then(entities => {
+      //   this._entities = entities;
+      //   this._onEntitiesDetected(entities);
+      //   this._detectionPending = false;
+      //   // console.tron.log('SPEED: ' + (Date.now()-startTime).toString()+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
+      // });
+    });
+  }
+
   fetchStreets() {
     // '[out:json]; (way[\'tiger:name_type\'=\'St\'](37.712199,-122.503041,37.750701,-122.461064);); out geom; >; out skel qt;'
+    return Promise.resolve(this._debugStreets);
 
     const queryHullString = turf.convex(turf.featureCollection(this._hoodData.adjacentHoods))
                               .geometry.coordinates[0].map(tuple => [tuple[1],tuple[0]].join(' ')).join(' ');
@@ -310,7 +349,7 @@ class Compass {
     //   return this._entities;
     // }
     // END
-    console.tron.log('---');
+    // console.tron.log('---');
     await nextFrame(); this.__frameCounter++;
     const hoods = await this.getHoodCollisionsFastester();
     await nextFrame(); this.__frameCounter++;
@@ -396,7 +435,7 @@ class Compass {
       };
       if (adjacents.length) break;
     }
-    console.tron.log('ADJACENTS: '+adjacents.length);
+    // console.tron.log('ADJACENTS: '+adjacents.length);
     const current = {
       name: currentHood.properties.label,
       coordinates: currentHood.geometry.coordinates,
@@ -550,6 +589,7 @@ class Compass {
         streetStore[street.properties['@id']] = true;
         const streetData = {
           name: street.properties.name,
+          feature: street,
           distance: milesToSteps(collision.distance).toFixed() + ' steps',
           angle: getAngle(compassCoords,collision.segment).toFixed(1)
         };
@@ -856,7 +896,7 @@ class Compass {
     this._active = false;
     ReactNativeHeading.stop();
     DeviceEventEmitter.removeAllListeners('headingUpdated');
-    navigator.geolocation.clearWatch(this.watchID);
+    if (this.watchID) navigator.geolocation.clearWatch(this.watchID);
   }
 
   //TODO: make sure this works for MultiPolys!
