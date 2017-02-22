@@ -30,6 +30,7 @@ import { getRegionBBox,
          getAngle,
          overpassToLineString,
          milesToSteps,
+         getBearing,
        } from '../Lib/MapHelpers';
 import { lineString, point, polygon } from '@turf/helpers';
 import intersect from '@turf/intersect';
@@ -45,6 +46,7 @@ import vis from 'code42day-vis-why';
 
 import { create } from 'apisauce';
 const api = create({ baseURL: 'http://overpass-api.de/api/interpreter'});
+const geomantic = create({ baseURL: 'http://geomantic.herokuapp.com/location'});
 
 
 function smartFrame(fps) {
@@ -111,7 +113,8 @@ class Compass {
     this.entities = {};
     this._currentPosition = null;
     this._heading = null;
-    this._headingCorrection = 13.57; // Used for calibrating the heading. Defaulting to SF's according to MapBox
+    // this._headingCorrection = 13.57; // Used for calibrating the heading. Defaulting to SF's according to MapBox
+    this._headingCorrection = 0;
     this._debugStreets = this.getDebugStreets(); // deprecate
 
     /* DEBUG STREET TEST */
@@ -184,6 +187,8 @@ class Compass {
           -- This is so they can be refactored elsewhere as needed
     */
     var startTime;
+    this.__lastStarted = Date.now(); // WARNING: only using for location posting!
+
     this._active = true;
 
     this._radius = opts.radius || 10;
@@ -193,6 +198,7 @@ class Compass {
       .then(position => {
         if (!this._currentPosition) {
           this._currentPosition = position.coords;
+          this.postCoords(this._currentPosition);
           HoodSmith.refresh(this._currentPosition);
         }
         console.log("1. GOT INITIAL POSITION");
@@ -226,6 +232,7 @@ class Compass {
       this.watchID = navigator.geolocation.watchPosition(position => {
         this._currentPosition = position.coords;
         // console.tron.log('NAVIGATOR: ' + JSON.stringify(this._currentPosition));
+        this.postCoords(this._currentPosition);
         HoodSmith.refresh(this._currentPosition);
         console.log("2. GOT POSITION CHANGE");
 
@@ -256,7 +263,11 @@ class Compass {
     var totalSpeed = 0;
     var trials = 0;
     DeviceEventEmitter.addListener('headingUpdated', data => {
-      const heading = this._heading = (data.heading+this._headingCorrection)%360; // correction in SF is 13.586
+      let correctedHeading = (data.heading + this._headingCorrection)%360;
+      if (correctedHeading < 0) correctedHeading += 360;
+      const heading = this._heading = correctedHeading;
+      console.tron.log(JSON.stringify(data));
+      // const heading = this._heading = (data.heading+this._headingCorrection)%360; // correction in SF is 13.586
       const compassLine = this._compassLine = this.getCompassLine();
       // Note: just as here, it might be best to eventually forward both position and heading to all Compass
       //lifecycle functions
@@ -289,10 +300,12 @@ class Compass {
   }
 
   setHeadingCorrection(degrees) {
-    this._headingCorrection = Math.round(degrees*1000)/1000;
+    // return; // stubbing to make sure it isn't completely wrecked
+    this._headingCorrection = Math.round(degrees)%90;
     console.tron.log('roundedCorrection: ' + this._headingCorrection);
   }
 
+  // PLEASE REFACTOR THIS WITH THE NON-MANUAL CODE! 
   setPosition(positionCoords) {
     // Note: mapbox requires a RAF call in order to actually re-render neighborhoods
     //  Not sure about modularity when it comes to this, but I'm already making extensive use of
@@ -303,6 +316,8 @@ class Compass {
       // WARNING: copied this from the watchposition callback
       // console.tron.log(JSON.stringify(positionCoords));
       this._currentPosition = positionCoords;
+
+      this.postCoords(this._currentPosition);
       HoodSmith.refresh(this._currentPosition);
 
       // WARNING: kludge for outputting annotations
@@ -328,9 +343,20 @@ class Compass {
     });
   }
 
+  // Quick and dirty; only posts if the last one is done, doesn't bother to queue them up if it's not
+  postCoords(positionCoords) {
+    if (this.__postCoordsPending) return Promise.resolve();
+    const data = { coords: [positionCoords.longitude, positionCoords.latitude], startTime: this.__lastStarted };
+    this.__postCoordsPending = true;
+    return geomantic.post('', data).then(data => { 
+      this.__postCoordsPending = false; 
+      return data; 
+    });
+  }
+
   fetchStreets() {
     // '[out:json]; (way[\'tiger:name_type\'=\'St\'](37.712199,-122.503041,37.750701,-122.461064);); out geom; >; out skel qt;'
-    return Promise.resolve(this._debugStreets); // just a stubber
+    // return Promise.resolve(this._debugStreets); // just a stubber
 
     const queryHullString = turf.convex(turf.featureCollection(this._hoodData.adjacentHoods))
                               .geometry.coordinates[0].map(tuple => [tuple[1],tuple[0]].join(' ')).join(' ');
@@ -607,11 +633,14 @@ class Compass {
         if (!collision) continue;
         // Note: only run a successful collision once
         streetStore[street.properties['@id']] = true;
+        const angleRaw = getAngle(compassCoords,collision.segment);
         const streetData = {
           name: street.properties.name,
           feature: street,
           distance: milesToSteps(collision.distance).toFixed() + ' steps',
-          angle: getAngle(compassCoords,collision.segment).toFixed(1)
+          angle: angleRaw.toFixed(1),
+          angleRaw, // WARNING: more tech debt, please stop this crazy thing!
+          bearing: getBearing(collision.segment) // DANGER: MORE tech debt! getAngle calls getBearing already!
         };
         const relations = street.properties['@relations'];
         if (relations) {

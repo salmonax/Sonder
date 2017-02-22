@@ -280,7 +280,7 @@ export const polyIntersect = (line, polyline) => {
 // accepts coordinates at normal mulitPoly levels and runs polyIntersect
 // returns the nearest of each
 export const multiPolyIntersect = (line, multiPoly) => {
-  console.tron.log('MULTIPOLY CALLED');
+  // console.tron.log('MULTIPOLY CALLED');
   var result = false;
   var nearest;
   // Grabs only the outer shape of each poly
@@ -300,7 +300,7 @@ export const multiPolyIntersect = (line, multiPoly) => {
 
 
 // returns the acute angle between two lngLat tuples in degrees
-const getBearing = (line) => {
+export const getBearing = (line) => {
     const degrees2radians = Math.PI / 180;
     const radians2degrees = 180 / Math.PI;
     const { sin, cos, atan2 } = Math;

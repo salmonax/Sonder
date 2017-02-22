@@ -9,6 +9,7 @@ import {
   StatusBar,
   View,
   ScrollView,
+  TouchableOpacity,
 } from 'react-native';
 
 import Styles from './Styles/MapViewStyle';
@@ -53,7 +54,8 @@ class SonderView extends Component {
     // console.tron.log('MAPBOX: ' + JSON.stringify(location));
     const { trueHeading, magneticHeading } = location;
     Compass.setPosition(location);
-    Compass.setHeadingCorrection(trueHeading-magneticHeading);
+    // Compass.setHeadingCorrection(trueHeading-magneticHeading);
+    this.__headingCorrection = trueHeading-magneticHeading;
 
     console.log('onUpdateUserLocation', location);
   };
@@ -106,7 +108,7 @@ class SonderView extends Component {
           this._map.easeTo(ops, true, () => {});
         }
         this.setState({ lastPosition });
-        this.setPositionAnnotation(latitude, longitude, 'onPositionChange');
+        // this.setPositionAnnotation(latitude, longitude, 'onPositionChange');
         this._setMapBoxMovement();
       },
       onHoodChange: ({newHood, adjacentHoods}) => {
@@ -136,7 +138,7 @@ class SonderView extends Component {
       },
       onEntitiesDetected: (entities) => {
         this.setState({ entities });
-        this.setStreetAnnotations(entities.streets.map(street => street.feature));
+        // this.setStreetAnnotations(entities.streets.map(street => street.feature));
       }
     });
   }
@@ -286,6 +288,38 @@ class SonderView extends Component {
     }
   }
 
+  _perpendicularizeHeading() {
+    if (!this.state.entities || !this.state.entities.streets.length) return;
+    console.tron.log('HEADING MOFO: ' + Compass._heading);
+    const heading = Compass._heading-Compass._headingCorrection;
+
+
+    const nearestStreet = this.state.entities.streets[0];
+    let { angleRaw, bearing } = nearestStreet;
+    console.tron.log('STREET BEARING: ' + bearing);
+    bearing = (bearing+90)%360;
+    console.tron.log('ADDED BEARING: ' + bearing);
+    let bigBearing, smallBearing;
+    if (bearing >= 180) {
+      bigBearing = bearing;
+      smallBearing = bearing-180;;
+    } else {
+      bigBearing = bearing+180;
+      smallBearing = bearing;
+    }
+    const bigDelta = Math.abs(heading-bigBearing);
+    const smallDelta = Math.abs(heading-smallBearing);
+    const delta = (bigDelta < smallDelta) ? bigBearing : smallBearing;
+    console.tron.log('details: ' + delta + ' ' + heading);
+    console.tron.log('after: ' + (delta-heading).toString());
+    console.tron.log('before: ' + (heading-delta).toString());
+    Compass.setHeadingCorrection(delta-heading);
+  }
+
+  _resetHeading() {
+    Compass.setHeadingCorrection(0);
+  }
+
   render() {
     StatusBar.setHidden(false);
     const nearestAdjacentHood = (this.state.entities) ? 
@@ -297,6 +331,7 @@ class SonderView extends Component {
                             this.state.entities.streets[0].name : '';
     const nearestStreetDistance = (this.state.entities && this.state.entities.streets.length) ? 
                             this.state.entities.streets[0].distance : '';
+
     const dynamicStyles = StyleSheet.create({
       currentHood: {
         position: 'absolute',
@@ -380,12 +415,21 @@ class SonderView extends Component {
         {/*<Text>{this.state.headingIsSupported ?
                 getPrettyBearing(this.state.heading)
                 : "Heading unsupported." }</Text>*/}
-
         {this.state.entities ? <Text style={dynamicStyles.currentHood}>{this.state.entities ? 
               this.state.entities.hoods.current.name : ''}</Text> : null }
         {this.state.entities ? <Text style={dynamicStyles.adjacentHood}>{nearestAdjacentHoodLabel}</Text> : null }
         {this.state.entities ? <Text style={dynamicStyles.nearestStreet}>{nearestStreet+` (${nearestStreetDistance})`}</Text> : null }
+
+        <Text style={styles.debug}>{this.__headingCorrection ? this.__headingCorrection.toFixed(3) + ' ' + Compass._headingCorrection :
+                             'Waiting for heading correction...'}</Text>
         
+        <TouchableOpacity style={styles.adjust} onPress={this._perpendicularizeHeading.bind(this)}>
+          <Text style={styles.adjustText}>Adjust!</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.reset} onPress={this._resetHeading.bind(this)}>
+          <Text style={styles.resetText}>Reset!</Text>
+        </TouchableOpacity>
         {/*
         {this.state.entities ? <Text>{JSON.stringify(Compass._getCompassLineFeature())}</Text> : null }
         <Text>{this.state.entities ? 
@@ -438,7 +482,49 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1
+  },
+  debug: {
+    position: 'absolute',
+    paddingLeft: 10,
+    paddingRight: 10,
+    right: 0,
+    left: 0,
+    bottom: 0,
+    fontSize: 10,
+    borderColor: '#AA9922',
+    borderWidth: 1,
+    color: '#AA9922',
+    backgroundColor: '#000000'
+  },
+  adjust: {
+    position: 'absolute',
+    right: 20,
+    bottom: 115,
+  },
+  adjustText: {
+    fontSize: 28,
+    borderColor: '#AA2299', 
+    paddingLeft: 10,
+    paddingRight: 10,
+    borderWidth: 1,
+    color: '#AA2299',
+    backgroundColor: '#000000'
+  },
+  reset: {
+    position: 'absolute',
+    right: 20,
+    bottom: 160,
+  },
+  resetText: {
+    fontSize: 28,
+    borderColor: '#9922AA', 
+    paddingLeft: 10,
+    paddingRight: 10,
+    borderWidth: 1,
+    color: '#9922AA',
+    backgroundColor: '#000000'
   }
+
 });
 
 export default connect(mapStateToProps)(SonderView)
