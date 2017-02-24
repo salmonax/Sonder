@@ -45,7 +45,7 @@ import vis from 'code42day-vis-why';
 // import nextFrame from 'next-frame';
 
 import { create } from 'apisauce';
-const api = create({ baseURL: 'http://overpass-api.de/api/interpreter'});
+const overpass = create({ baseURL: 'http://overpass-api.de/api/interpreter'});
 const geomantic = create({ baseURL: 'http://geomantic.herokuapp.com/location'});
 
 
@@ -142,6 +142,8 @@ class Compass {
       this._hoodsTree = new Tree()
       this._hoodsTree.geoJSON(adjacentHoods);
 
+      this._overpassHull = this._makeOverpassHull(this._hoodData.adjacentHoods);
+
       this._onHoodChange(hoodData);
       // Also, load streets for all adjacent neighborhoods
       this.fetchStreets().then(streets => {
@@ -213,6 +215,9 @@ class Compass {
         this._hoodData = hoodData;
         this._hoodsTree = new Tree()
         this._hoodsTree.geoJSON(hoodData.adjacentHoods);
+
+        this._overpassHull = this._makeOverpassHull(this._hoodData.adjacentHoods);
+
         this._onInitialHoods(hoodData);
         // ToDo: dry this up; dry ALL of this up.
         this.fetchStreets().then(streets => {
@@ -266,7 +271,7 @@ class Compass {
       let correctedHeading = (data.heading + this._headingCorrection)%360;
       if (correctedHeading < 0) correctedHeading += 360;
       const heading = this._heading = correctedHeading;
-      console.tron.log(JSON.stringify(data));
+
       // const heading = this._heading = (data.heading+this._headingCorrection)%360; // correction in SF is 13.586
       const compassLine = this._compassLine = this.getCompassLine();
       // Note: just as here, it might be best to eventually forward both position and heading to all Compass
@@ -292,7 +297,7 @@ class Compass {
         trials++;
         totalSpeed = (totalSpeed+Date.now()-startTime);
         let avgSpeed = (totalSpeed/trials).toFixed(0);
-        // console.tron.log('AVG: ' + avgSpeed+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
+        console.tron.log('AVG: ' + avgSpeed+'ms SPREAD: ' + this.__frameCounter.toString()+' frames');
       });
       this._lastHeadingChange = Date.now();
       this._lastHeading = heading;
@@ -345,6 +350,7 @@ class Compass {
 
   // Quick and dirty; only posts if the last one is done, doesn't bother to queue them up if it's not
   postCoords(positionCoords) {
+    // return Promise.resolve(); // Stubber
     if (this.__postCoordsPending) return Promise.resolve();
     const data = { coords: [positionCoords.longitude, positionCoords.latitude], startTime: this.__lastStarted };
     this.__postCoordsPending = true;
@@ -354,17 +360,52 @@ class Compass {
     });
   }
 
-  fetchStreets() {
+  // ToDo: put this in maphelpers, not here
+  _makeOverpassHull(features) {
+    return turf.convex(turf.featureCollection(features))
+                              .geometry.coordinates[0].map(tuple => [tuple[1],tuple[0]].join(' ')).join(' ');
+  }
+
+  fetchBuslines(queryHullString = this._overpassHull) {
+    const query = `[out:json]; (rel[route~"bus$"](poly:"${queryHullString}");); out body;`;
+    return overpass.post('', query);
+  }
+
+  _injectOverpassRelations(streetFeatures = this._currentStreets, relations) {
+    // NOTE: this is purposely impure. Features in the rtree will also gain these
+    // relation tags
+
+    // 1. Build an object with all the street features mapped to an object 
+    //  with keys corresponding to their ids
+    console.log(streetFeatures);
+    let streetsHash = {}
+    for (let street of streetFeatures) streetsHash[street.id] = street;
+    // 2. Run down the relations and build an object with member ids as keys
+    for (let relation of relations) {
+      for (let member of relation.members) {
+        const type = member.type;
+        const wayId = type+'/'+member.ref;
+        if (type !== 'way' || !streetsHash[wayId]) continue;
+        const street = streetsHash[wayId];
+        if (!street['@relations']) street['@relations'] = [];
+        street['@relations'].push({
+          role: member.role,
+          rel: relation.id,
+          reltags: relation.tags,
+        });
+      }
+    }
+    return streetFeatures;
+  }
+
+  fetchStreets(queryHullString = this._overpassHull) {
     // '[out:json]; (way[\'tiger:name_type\'=\'St\'](37.712199,-122.503041,37.750701,-122.461064);); out geom; >; out skel qt;'
     // return Promise.resolve(this._debugStreets); // just a stubber
-
-    const queryHullString = turf.convex(turf.featureCollection(this._hoodData.adjacentHoods))
-                              .geometry.coordinates[0].map(tuple => [tuple[1],tuple[0]].join(' ')).join(' ');
     // const bbox = turf.bbox(turf.featureCollection(this._hoodData.adjacentHoods));
     // const queryBBoxString = [bbox[1], bbox[0], bbox[3], bbox[2]].join(',');
-    const query = `[out:json]; (way['tiger:name_type'](poly:"${queryHullString}");); out geom;`;
+    const query = `[out:json]; (way['tiger:name_type'](poly:"${queryHullString}");); out tags geom;`;
     // alert(query);
-    return api.post('', query).then(res => res.data.elements.map(element => overpassToLineString(element)) );
+    return overpass.post('', query).then(res => res.data.elements.map(element => overpassToLineString(element)) );
     // res.data.elements.map(element => overpassToLineString(element))
   }
 
@@ -467,6 +508,7 @@ class Compass {
         if (hoodStore[hood.properties['id']]) continue;
         hoodStore[hood.properties['id']] = true;
         const { coordinates, type } = hood.geometry;
+        // Refactor these functions to not have to do this here, for crissake
         const collision = (type === 'MultiPolygon') ?  
           multiPolyIntersect(compassCoords, coordinates) :
           polyIntersect(compassCoords, coordinates[0]);
@@ -636,7 +678,7 @@ class Compass {
         const angleRaw = getAngle(compassCoords,collision.segment);
         const streetData = {
           name: street.properties.name,
-          feature: street,
+          // feature: street, // Note: this is only here to render collision features
           distance: milesToSteps(collision.distance).toFixed() + ' steps',
           angle: angleRaw.toFixed(1),
           angleRaw, // WARNING: more tech debt, please stop this crazy thing!

@@ -109,7 +109,7 @@ class SonderView extends Component {
         }
         this.setState({ lastPosition });
         // this.setPositionAnnotation(latitude, longitude, 'onPositionChange');
-        this._setMapBoxMovement();
+        // this._setMapBoxMovement();
       },
       onHoodChange: ({newHood, adjacentHoods}) => {
         this.setState({ currentHood: newHood, adjacentHoods });
@@ -420,8 +420,8 @@ class SonderView extends Component {
         {this.state.entities ? <Text style={dynamicStyles.adjacentHood}>{nearestAdjacentHoodLabel}</Text> : null }
         {this.state.entities ? <Text style={dynamicStyles.nearestStreet}>{nearestStreet+` (${nearestStreetDistance})`}</Text> : null }
 
-        <Text style={styles.debug}>{this.__headingCorrection ? this.__headingCorrection.toFixed(3) + ' ' + Compass._headingCorrection :
-                             'Waiting for heading correction...'}</Text>
+        {/*<Text style={styles.debug}>{this.__headingCorrection ? this.__headingCorrection.toFixed(3) + ' ' + Compass._headingCorrection :
+                             'Waiting for heading correction...'}</Text>*/}
         
         <TouchableOpacity style={styles.adjust} onPress={this._perpendicularizeHeading.bind(this)}>
           <Text style={styles.adjustText}>Adjust!</Text>
@@ -430,6 +430,17 @@ class SonderView extends Component {
         <TouchableOpacity style={styles.reset} onPress={this._resetHeading.bind(this)}>
           <Text style={styles.resetText}>Reset!</Text>
         </TouchableOpacity>
+
+        {/*}
+        <Text style={styles.debug}>{this.state.headingIsSupported ?
+                getPrettyBearing(this.state.heading)
+                : "Heading unsupported." }</Text>
+        <Text style={styles.debug}>{this.state.entities ? 
+                JSON.stringify(this.state.entities.streets) :
+                "Normalizing reticulating splines..."}</Text>
+        */}
+
+
         {/*
         {this.state.entities ? <Text>{JSON.stringify(Compass._getCompassLineFeature())}</Text> : null }
         <Text>{this.state.entities ? 
@@ -484,16 +495,7 @@ const styles = StyleSheet.create({
     flex: 1
   },
   debug: {
-    position: 'absolute',
-    paddingLeft: 10,
-    paddingRight: 10,
-    right: 0,
-    left: 0,
-    bottom: 0,
-    fontSize: 10,
-    borderColor: '#AA9922',
-    borderWidth: 1,
-    color: '#AA9922',
+    color: '#FFFFFF',
     backgroundColor: '#000000'
   },
   adjust: {

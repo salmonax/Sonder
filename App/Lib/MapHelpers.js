@@ -298,7 +298,6 @@ export const multiPolyIntersect = (line, multiPoly) => {
   return result;
 }
 
-
 // returns the acute angle between two lngLat tuples in degrees
 export const getBearing = (line) => {
     const degrees2radians = Math.PI / 180;

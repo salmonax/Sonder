@@ -3,7 +3,7 @@
 export default {
   // Functions return fixtures
   getNeighborhoodBoundaries: (city: string) => {
-    const sfData = require('../Fixtures/sanFrancisco.json')
+    const sfData = require('../Fixtures/indexed/sanFrancisco.json')
     return {
       ok: true,
       data: sfData

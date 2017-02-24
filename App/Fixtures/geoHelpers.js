@@ -1,10 +1,9 @@
 const turf = require('@turf/turf');
 const vis = require('code42day-vis-why');
 const rtree = require('rtree');
-
 const { clone } = require('cloneextend');
 const Offset = require('polygon-offset');
-const offset = new Offset()
+const offset = new Offset();
 
 
 /*** Utility functions for preparing boundary and centroid collections ***/
@@ -105,6 +104,7 @@ exports.makeIndexedCollectionFast = (hoodCollection, opts) => {
   hoods.forEach((hood, index) => { 
     // optionally clean blockids
     if (opts.clean) delete hood.properties.blockids;
+    // optionally simplify, with simplify argument being the minimum angle
     hood.properties.index = index;
     hood.properties.adjacents = [];
   });
@@ -126,11 +126,23 @@ exports.makeIndexedCollectionFast = (hoodCollection, opts) => {
         candidateHood.properties.adjacents.push(centerIndex);
       }
     }
+
     console.log("Finished "+centerIndex+' of '+hoodTotal+': "' + centerHood.properties.label+'"');
     console.log("Adjacent indices: " + centerHood.properties.adjacents);
   }
   console.log('Elapsed: '+(Date.now()-start)/1000+' seconds');
   console.log('Intersect called '+counter+' times.');
+  // Simplify neighborhood polies using my simple angle-based algorithm
+  // WARNING: turf.intersect MAY produce errors on the output of some of these polies!
+  if (opts.simplify) {
+    hoods.forEach(hood => {
+      console.log('Simplifying ' + hood.properties.label + '...');
+      hood.geometry.coordinates = (hood.geometry.type === 'MultiPolygon') ? 
+        multiPolySimplify(hood.geometry.coordinates, opts.simplify) :
+        [polySimplify(hood.geometry.coordinates[0], opts.simplify)];
+    });
+  }
+
   return hoodCollection;
 }
 
@@ -164,3 +176,40 @@ exports.makeIndexedCollection = (hoodCollection, opts) => {
   console.log('Intersect called '+counter+' times.');
   return hoodCollection;
 }
+
+const polySimplify = (polyline, minAngle = 0.1) => {
+  let simplified = [];
+  let maxIndex = polyline.length-1;
+  for (let i = 2; i <= maxIndex; i++) {
+    let one = [polyline[i-2],polyline[i-1]];
+    let two = [polyline[i-1],polyline[i]];
+    let angle = Math.abs(getBearing(one)-getBearing(two));
+    if (i === 2) simplified.push(one[0]);
+    if (angle > minAngle) simplified.push(two[0]);
+    if (i === maxIndex) simplified.push(two[1]);
+  }
+  return simplified;
+}
+
+// This accepts a multiPoly array at the normal level, returns simplified outer rings only
+const multiPolySimplify = (multiPoly, minAngle = 0.1) => {
+  let simplified = [];
+  for (poly of multiPoly) simplified.push([polySimplify(poly[0], minAngle)]);
+  return simplified;
+}
+
+// Doubled up from MapHelpers.js for now
+
+const getBearing = (line) => {
+    const degrees2radians = Math.PI / 180;
+    const radians2degrees = 180 / Math.PI;
+    const { sin, cos, atan2 } = Math;
+    const lng1 = degrees2radians * line[0][0];
+    const lng2 = degrees2radians * line[1][0];
+    const lat1 = degrees2radians * line[0][1];
+    const lat2 = degrees2radians * line[1][1];
+    const bearing = atan2(sin(lng2-lng1)*cos(lat2), 
+                 cos(lat1)*sin(lat2)-sin(lat1)*cos(lat2)*cos(lng2-lng1))*radians2degrees;
+    return (bearing < 0) ? 360+bearing : bearing;
+
+};

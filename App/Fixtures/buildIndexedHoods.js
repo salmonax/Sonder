@@ -1,3 +1,5 @@
+Error.stackTraceLimit = Infinity;
+
 const { makeIndexedCollectionFast } = require('./geoHelpers');
 const fs = require('fs');
 
@@ -13,7 +15,7 @@ console.log('Processing...')
 console.log('Warning: this will take several minutes.')
 const start = Date.now();
 data.forEach((file,index) => {
-  fs.writeFile(file.dest, JSON.stringify(makeIndexedCollectionFast(file.src, {clean: true})));
+  fs.writeFile(file.dest, JSON.stringify(makeIndexedCollectionFast(file.src, { clean: true, simplify: 4 })));
   console.log('File written to '+ file.dest);
 });
 const seconds = (Date.now()-start)/1000;
